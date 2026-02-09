@@ -1,8 +1,14 @@
-# APK Signing Guide
+## 1. How to Generate a Key (New Keystore)
 
-This document explains how to sign your application for release.
+If you don't have a keystore yet, run this command in your terminal (`app/` folder):
 
-## 1. Fast Track (Local Builds)
+```powershell
+keytool -genkey -v -keystore your_keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias my-key-alias
+```
+
+*Follow the prompts (set a password, name, etc.). This will create `your_keystore.jks`.*
+
+## 2. Fast Track (Local Builds)
 
 To sign builds on your local machine, create a file named `keystore.properties` in the `app/` (root of app repo) folder:
 
