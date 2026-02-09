@@ -16,3 +16,5 @@ local.properties
 build_log*.txt
 build_diag*.txt
 .kotlin/
+*.jks
+keystore.properties

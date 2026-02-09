@@ -1,0 +1,95 @@
+name: Build OnePlus ARB Checker
+
+env:
+  main_project_module: app
+  playstore_name: Bartixxx32
+
+on:
+  push:
+    branches:
+      - 'master'
+      - 'main'
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: 'Mark as Pre-release'
+        required: false
+        type: boolean
+      publish:
+        description: 'Publish release'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set environment variables
+        run: |
+          echo "date_today=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+          echo "repository_name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_ENV
+
+      - name: Set up JDK 23
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '23'
+          cache: 'gradle'
+
+      - name: Change wrapper permissions
+        run: chmod +x ./gradlew
+
+      - name: Build project
+        run: ./gradlew build
+
+      - name: Build APK release
+        run: ./gradlew assembleRelease
+
+      - name: Get current version
+        id: version-env
+        run: |
+          ./gradlew :app:getVersion
+          echo "version=$(cat app/build/version.txt)" >> $GITHUB_ENV
+
+      # Sign APK release
+      - uses: r0adkll/sign-android-release@v1
+        name: Sign APK
+        id: sign_app
+        with:
+          releaseDirectory: app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.KEYSTORE_FILE }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+        env:
+          BUILD_TOOLS_VERSION: "35.0.0"
+
+      # Upload signed APK as artifact
+      - name: Rename Signed APK
+        run: mv ${{ steps.sign_app.outputs.signedReleaseFile }} app/build/outputs/apk/release/OnePlusArbChecker-v${{ env.version }}.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OnePlusArbChecker APK
+          path: app/build/outputs/apk/release/OnePlusArbChecker-v${{ env.version }}.apk
+
+      # Publish APK to GitHub Releases
+      - name: Publish APK
+        if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          prerelease: ${{ inputs.prerelease || 'false' }}
+          files: app/build/outputs/apk/release/OnePlusArbChecker-v${{ env.version }}.apk
+          tag_name: v${{ env.version }}

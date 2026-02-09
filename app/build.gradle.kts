@@ -3,6 +3,9 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+import java.util.Properties
+import java.io.FileInputStream
+
 android {
     namespace = "com.bartixxx.oneplusarbchecker"
     compileSdk = 36
@@ -11,19 +14,37 @@ android {
         applicationId = "com.bartixxx.oneplusarbchecker"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            val keystoreFile = project.rootProject.file("keystore.properties")
+            if (keystoreFile.exists()) {
+                val props = Properties()
+                props.load(FileInputStream(keystoreFile))
+                storeFile = project.rootProject.file(props["storeFile"] as String)
+                storePassword = props["storePassword"] as String
+                keyAlias = props["keyAlias"] as String
+                keyPassword = props["keyPassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (project.rootProject.file("keystore.properties").exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     compileOptions {
@@ -56,4 +77,15 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.item.gson)
     implementation(libs.androidx.work.runtime.ktx)
+}
+
+// Custom task to print version for GitHub Actions
+tasks.register("getVersion") {
+    doLast {
+        val version = android.defaultConfig.versionName
+        val versionFile = File(layout.buildDirectory.get().asFile, "version.txt")
+        versionFile.parentFile.mkdirs()
+        versionFile.writeText(version ?: "1.0")
+        println("Version: $version")
+    }
 }
