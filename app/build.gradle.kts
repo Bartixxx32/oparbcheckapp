@@ -57,3 +57,14 @@ dependencies {
     implementation(libs.item.gson)
     implementation(libs.androidx.work.runtime.ktx)
 }
+
+// Custom task to print version for GitHub Actions
+tasks.register("getVersion") {
+    doLast {
+        val version = android.defaultConfig.versionName
+        val versionFile = File(layout.buildDirectory.get().asFile, "version.txt")
+        versionFile.parentFile.mkdirs()
+        versionFile.writeText(version ?: "1.0")
+        println("Version: $version")
+    }
+}
