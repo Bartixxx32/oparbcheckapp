@@ -1,10 +1,11 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.android)
 }
-
-import java.util.Properties
-import java.io.FileInputStream
 
 android {
     namespace = "com.bartixxx.oneplusarbchecker"
@@ -48,12 +49,20 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
+    packaging {
+        resources {
+            excludes += "META-INF/version-control-info.textproto"
+        }
+    }
+    kotlinOptions {
+        jvmTarget = "21"
     }
     buildFeatures {
         compose = true
-        buildConfig = true // Ensure explicit
+        buildConfig = false // Ensure explicit
     }
 
     // Enforce reproducible builds
