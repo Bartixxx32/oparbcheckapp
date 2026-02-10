@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.android)
 }
 
 import java.util.Properties
@@ -51,9 +52,14 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    packaging {
+        resources {
+            excludes += "META-INF/version-control-info.textproto"
+        }
+    }
     buildFeatures {
         compose = true
-        buildConfig = true // Ensure explicit
+        buildConfig = false // Ensure explicit
     }
 
     // Enforce reproducible builds
@@ -94,5 +100,10 @@ tasks.register("getVersion") {
         versionFile.parentFile.mkdirs()
         versionFile.writeText(version ?: "1.0")
         println("Version: $version")
+    }
+}
+android {
+    kotlinOptions {
+        jvmTarget = "21"
     }
 }
