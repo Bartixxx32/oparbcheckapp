@@ -53,6 +53,13 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true // Ensure explicit
+    }
+
+    // Enforce reproducible builds
+    tasks.withType<AbstractArchiveTask>().configureEach {
+        isPreserveFileTimestamps = false
+        isReproducibleFileOrder = true
     }
 }
 
