@@ -1,1 +1,1 @@
-Sprawdzaj indeks Anti-Rollback (ARB) dla urządzeń OnePlus, by bezpiecznie aktualizować system.
+Sprawdzaj indeks Anti-Rollback (ARB) OnePlus dla bezpiecznych aktualizacji.
