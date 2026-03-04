@@ -11,5 +11,8 @@ data class VersionData(
     @SerializedName("arb") val arb: Int,
     @SerializedName("regions") val regions: List<String>,
     @SerializedName("status") val status: String,
-    @SerializedName("md5") val md5: String?
+    @SerializedName("md5") val md5: String?,
+    @SerializedName("first_seen") val firstSeen: String? = null,
+    @SerializedName("major") val major: Int? = null,
+    @SerializedName("minor") val minor: Int? = null
 )

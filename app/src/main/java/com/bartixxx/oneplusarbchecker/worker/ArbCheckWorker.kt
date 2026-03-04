@@ -11,12 +11,8 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.bartixxx.oneplusarbchecker.MainActivity
 import com.bartixxx.oneplusarbchecker.R
-import com.bartixxx.oneplusarbchecker.data.AmIFusedApi
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
-import java.io.BufferedReader
-import java.io.InputStreamReader
-
+import com.bartixxx.oneplusarbchecker.data.RetrofitInstance
+import com.bartixxx.oneplusarbchecker.utils.SystemUtils
 import kotlinx.coroutines.flow.first
 
 class ArbCheckWorker(
@@ -34,16 +30,10 @@ class ArbCheckWorker(
                 return Result.success() // Skip work if notifications disabled
             }
 
-            val model = getSystemProperty("ro.product.model") ?: return Result.success()
-            val version = getSystemProperty("ro.build.display.id") ?: return Result.success()
+            val model = SystemUtils.getSystemProperty("ro.product.model") ?: return Result.success()
+            val version = SystemUtils.getSystemProperty("ro.build.display.id") ?: return Result.success()
 
-            val retrofit = Retrofit.Builder()
-                .baseUrl("https://oneplusantiroll.netlify.app/")
-                .addConverterFactory(GsonConverterFactory.create())
-                .build()
-
-            val api = retrofit.create(AmIFusedApi::class.java)
-            val database = api.getDatabase()
+            val database = RetrofitInstance.api.getDatabase()
 
             val deviceData = database[model] ?: return Result.success()
             
@@ -93,7 +83,7 @@ class ArbCheckWorker(
         val content = applicationContext.getString(R.string.notification_content, maxArb)
 
         val notification = NotificationCompat.Builder(applicationContext, channelId)
-            .setSmallIcon(R.mipmap.ic_launcher) // Assuming default icon exists
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(content)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -102,15 +92,5 @@ class ArbCheckWorker(
             .build()
 
         notificationManager.notify(1, notification)
-    }
-
-    private fun getSystemProperty(key: String): String? {
-        try {
-            val process = Runtime.getRuntime().exec("getprop $key")
-            val reader = BufferedReader(InputStreamReader(process.inputStream))
-            return reader.readLine()?.trim()
-        } catch (e: Exception) {
-            return null
-        }
     }
 }

@@ -45,4 +45,8 @@
     <string name="notification_channel_name">Aktualizacje ARB</string>
     <string name="notification_title">Wykryto aktualizację OnePlus ARB!</string>
     <string name="notification_content">Nowa aktualizacja ma indeks ARB %1$d. Uważaj!</string>
+    <string name="region_label">Region: %1$s</string>
+    <string name="first_seen_label">Wykryto: %1$s</string>
+    <string name="status_current">Aktualna</string>
+    <string name="status_archived">Archiwalna</string>
 </resources>

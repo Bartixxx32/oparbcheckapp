@@ -44,4 +44,8 @@
     <string name="notification_channel_name">ARB Updates</string>
     <string name="notification_title">OnePlus ARB Update Detected!</string>
     <string name="notification_content">A new update has ARB Index %1$d. Be careful!</string>
+    <string name="region_label">Region: %1$s</string>
+    <string name="first_seen_label">First seen: %1$s</string>
+    <string name="status_current">Current</string>
+    <string name="status_archived">Archived</string>
 </resources>
