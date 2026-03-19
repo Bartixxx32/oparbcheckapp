@@ -11,7 +11,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.bartixxx.oneplusarbchecker.MainActivity
 import com.bartixxx.oneplusarbchecker.R
-import com.bartixxx.oneplusarbchecker.data.RetrofitInstance
+import com.bartixxx.oneplusarbchecker.data.*
 import com.bartixxx.oneplusarbchecker.utils.SystemUtils
 import kotlinx.coroutines.flow.first
 
@@ -33,7 +33,9 @@ class ArbCheckWorker(
             val model = SystemUtils.getSystemProperty("ro.product.model") ?: return Result.success()
             val version = SystemUtils.getSystemProperty("ro.build.display.id") ?: return Result.success()
 
-            val database = RetrofitInstance.api.getDatabase()
+            val api = RetrofitInstance.api
+            try { api.recordHit() } catch (e: Exception) { e.printStackTrace() }
+            val database = api.getDatabase()
 
             val deviceData = database[model] ?: return Result.success()
             

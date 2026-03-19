@@ -39,10 +39,9 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import com.bartixxx.oneplusarbchecker.data.SettingsRepository
+import com.bartixxx.oneplusarbchecker.data.*
 import com.bartixxx.oneplusarbchecker.ui.theme.AmIFusedTheme
 import com.bartixxx.oneplusarbchecker.worker.ArbCheckWorker
-import com.bartixxx.oneplusarbchecker.data.DeviceData
 import com.bartixxx.oneplusarbchecker.utils.HapticUtils
 import com.bartixxx.oneplusarbchecker.utils.SystemUtils
 import kotlinx.coroutines.Dispatchers
@@ -182,7 +181,9 @@ fun FusedStatusScreen(
 
                 loadingMessage = context.getString(R.string.fetching_db)
                 // 2. Fetch Database
-                val database = com.bartixxx.oneplusarbchecker.data.RetrofitInstance.api.getDatabase()
+                val api = com.bartixxx.oneplusarbchecker.data.RetrofitInstance.api
+                launch { try { api.recordHit() } catch (e: Exception) { e.printStackTrace() } }
+                val database = api.getDatabase()
                 val deviceData = database[model]
                 currentDeviceData = deviceData
 
