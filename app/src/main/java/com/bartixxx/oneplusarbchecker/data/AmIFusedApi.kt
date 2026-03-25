@@ -7,6 +7,6 @@ interface AmIFusedApi {
     @GET("database.json")
     suspend fun getDatabase(): Map<String, DeviceData>
 
-    @GET("hit")
+    @GET("https://oparb.bartixxx.workers.dev/hit")
     suspend fun recordHit(): ResponseBody
 }
