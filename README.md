@@ -1,8 +1,5 @@
 # OnePlus ARB Checker 📱🛡️
 
-[![Android CI](https://github.com/Bartixxx32/OnePlus-ARB-Check-App/actions/workflows/android.yml/badge.svg)](https://github.com/Bartixxx32/OnePlus-ARB-Check-App/actions/workflows/android.yml)
-[![License](https://img.shields.io/github/license/Bartixxx32/OnePlus-ARB-Check-App)](LICENSE)
-
 **OnePlus ARB Checker** is a powerful and user-friendly Android application designed to help OnePlus users monitor their device's **Anti-Rollback (ARB)** status. Built with modern technologies like **Jetpack Compose** and **Material 3**, it provides real-time information to prevent accidental bricks during firmware downgrades.
 
 This project is a mobile companion to the [OnePlus-antirollchecker](https://github.com/Bartixxx32/OnePlus-antirollchecker) database.
