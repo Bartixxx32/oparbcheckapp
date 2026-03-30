@@ -49,4 +49,7 @@
     <string name="first_seen_label">Wykryto: %1$s</string>
     <string name="status_current">Aktualna</string>
     <string name="status_archived">Archiwalna</string>
+    <string name="status_undetectable">ARB niewykrywalne</string>
+    <string name="big_text_undetectable">Hmm...\nNiewykrywalne</string>
+    <string name="arb_undetectable">Indeks ARB: ?</string>
 </resources>

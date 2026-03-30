@@ -14,5 +14,6 @@ data class VersionData(
     @SerializedName("md5") val md5: String?,
     @SerializedName("first_seen") val firstSeen: String? = null,
     @SerializedName("major") val major: Int? = null,
-    @SerializedName("minor") val minor: Int? = null
+    @SerializedName("minor") val minor: Int? = null,
+    @SerializedName("is_hardcoded") val isHardcoded: Boolean = false
 )

@@ -145,7 +145,14 @@ class MainActivity : ComponentActivity() {
 // Sealed class for clean state representation in AnimatedContent
 private sealed class CheckResult {
     data object Loading : CheckResult()
-    data class Success(val isFused: Boolean?, val statusText: String, val detailsText: String, val warningText: String?, val deviceData: DeviceData?) : CheckResult()
+    data class Success(
+        val isFused: Boolean?,
+        val isUndetectable: Boolean,
+        val statusText: String,
+        val detailsText: String,
+        val warningText: String?,
+        val deviceData: DeviceData?
+    ) : CheckResult()
     data class Error(val message: String) : CheckResult()
 }
 
@@ -208,7 +215,17 @@ fun FusedStatusScreen(
                     
                     if (matchedVersion != null) {
                         val arb = matchedVersion.arb
-                        if (arb > 0) {
+                        if (matchedVersion.isHardcoded) {
+                            isFused = null
+                            statusText = context.getString(R.string.status_undetectable)
+                            shareMsg = context.getString(R.string.share_msg_unknown, model)
+
+                            // Check for future updates even for undetectable versions
+                            val maxArb = deviceData.versions.values.filter { !it.isHardcoded }.maxOfOrNull { it.arb } ?: 0
+                            if (maxArb > 0) {
+                                warningText = context.getString(R.string.warning_future_update, maxArb)
+                            }
+                        } else if (arb > 0) {
                             isFused = true
                             statusText = context.getString(R.string.arb_index, arb)
                             shareMsg = context.getString(R.string.share_msg_fused, model, arb)
@@ -218,7 +235,7 @@ fun FusedStatusScreen(
                             shareMsg = context.getString(R.string.share_msg_safe, model)
                             
                             // Check for future updates
-                            val maxArb = deviceData.versions.values.maxOfOrNull { it.arb } ?: 0
+                            val maxArb = deviceData.versions.values.filter { !it.isHardcoded }.maxOfOrNull { it.arb } ?: 0
                             if (maxArb > arb) {
                                 warningText = context.getString(R.string.warning_future_update, maxArb)
                             }
@@ -232,7 +249,14 @@ fun FusedStatusScreen(
                     val detailsText = context.getString(R.string.details_format, model, version, deviceData.deviceName)
                     onUpdateShareText(shareMsg)
                     
-                    checkResult = CheckResult.Success(isFused, statusText, detailsText, warningText, deviceData)
+                    checkResult = CheckResult.Success(
+                        isFused = isFused,
+                        isUndetectable = matchedVersion?.isHardcoded == true,
+                        statusText = statusText,
+                        detailsText = detailsText,
+                        warningText = warningText,
+                        deviceData = deviceData
+                    )
                     
                     // Haptic feedback based on result
                     when (isFused) {
@@ -247,7 +271,14 @@ fun FusedStatusScreen(
                 } else {
                    val detailsText = context.getString(R.string.details_format_simple, model, version)
                    onUpdateShareText(context.getString(R.string.share_msg_unsupported, model))
-                   checkResult = CheckResult.Success(null, context.getString(R.string.status_unsupported), detailsText, null, null)
+                   checkResult = CheckResult.Success(
+                       isFused = null,
+                       isUndetectable = false,
+                       statusText = context.getString(R.string.status_unsupported),
+                       detailsText = detailsText,
+                       warningText = null,
+                       deviceData = null
+                   )
                 }
 
             } catch (e: Exception) {
@@ -309,6 +340,7 @@ fun FusedStatusScreen(
                         is CheckResult.Success -> {
                             StatusContent(
                                 isFused = result.isFused,
+                                isUndetectable = result.isUndetectable,
                                 statusText = result.statusText,
                                 detailsText = result.detailsText,
                                 warningText = result.warningText,
@@ -369,6 +401,7 @@ fun FusedStatusScreen(
 @Composable
 private fun StatusContent(
     isFused: Boolean?,
+    isUndetectable: Boolean,
     statusText: String,
     detailsText: String,
     warningText: String?,
@@ -382,15 +415,17 @@ private fun StatusContent(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        val bigText = when (isFused) {
-            true -> stringResource(R.string.big_text_fused)
-            false -> stringResource(R.string.big_text_safe)
+        val bigText = when {
+            isUndetectable -> stringResource(R.string.big_text_undetectable)
+            isFused == true -> stringResource(R.string.big_text_fused)
+            isFused == false -> stringResource(R.string.big_text_safe)
             else -> stringResource(R.string.big_text_unknown)
         }
         
-        val textColor = when (isFused) {
-            true -> MaterialTheme.colorScheme.error
-            false -> Color(0xFF4CAF50)
+        val textColor = when {
+            isUndetectable -> Color(0xFFFF9800) // Orange
+            isFused == true -> MaterialTheme.colorScheme.error
+            isFused == false -> Color(0xFF4CAF50)
             else -> MaterialTheme.colorScheme.onSurfaceVariant
         }
 
@@ -618,15 +653,15 @@ fun HistoryBottomSheet(
     sheetState: SheetState,
     onDismiss: () -> Unit
 ) {
+    val sortedVersions = deviceData.versions.entries
+        .sortedByDescending { it.value.firstSeen ?: it.key }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = { BottomSheetDefaults.DragHandle() }
     ) {
-        val sortedVersions = deviceData.versions.entries
-            .sortedByDescending { it.value.firstSeen ?: it.key }
-        
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -643,7 +678,17 @@ fun HistoryBottomSheet(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 items(sortedVersions) { (version, data) ->
-                    val arbColor = if (data.arb > 0) MaterialTheme.colorScheme.error else Color(0xFF4CAF50)
+                    val arbColor = when {
+                        data.isHardcoded -> Color(0xFFFF9800)
+                        data.arb > 0 -> MaterialTheme.colorScheme.error
+                        else -> Color(0xFF4CAF50)
+                    }
+
+                    val arbText = if (data.isHardcoded) {
+                        stringResource(R.string.arb_undetectable)
+                    } else {
+                        stringResource(R.string.arb_index, data.arb)
+                    }
                     
                     ListItem(
                         headlineContent = { 
@@ -656,7 +701,7 @@ fun HistoryBottomSheet(
                         supportingContent = {
                             Column {
                                 Text(
-                                    text = stringResource(R.string.arb_index, data.arb),
+                                    text = arbText,
                                     color = arbColor,
                                     fontWeight = FontWeight.Bold,
                                     style = MaterialTheme.typography.bodyMedium
