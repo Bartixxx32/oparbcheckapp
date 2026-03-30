@@ -50,10 +50,12 @@ class ArbCheckWorker(
             
             val currentArb = matchedVersion?.arb ?: 0
             
-            // Check for max ARB
-            val maxArb = deviceData.versions.values.maxOfOrNull { it.arb } ?: 0
+            // Check for max ARB, ignoring undetectable (hardcoded) versions
+            val maxArb = deviceData.versions.values
+                .filter { !it.isHardcoded }
+                .maxOfOrNull { it.arb } ?: 0
 
-            if (maxArb > currentArb) {
+            if (maxArb > 0 && maxArb > currentArb) {
                 sendNotification(maxArb)
             }
             
