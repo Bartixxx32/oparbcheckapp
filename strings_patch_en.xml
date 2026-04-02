@@ -1,0 +1,9 @@
+<<<<<<< SEARCH
+    <string name="arb_undetectable">ARB Index: ?</string>
+</resources>
+=======
+    <string name="arb_undetectable">ARB Index: ?</string>
+    <string name="data_source_title">Data Source</string>
+    <string name="data_source_description">ARB status is retrieved from the oparb.pages.dev database and compared with your phone\'s current build.</string>
+</resources>
+>>>>>>> REPLACE
