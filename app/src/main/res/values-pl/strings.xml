@@ -53,5 +53,5 @@
     <string name="big_text_undetectable">Hmm...\nNiewykrywalne</string>
     <string name="arb_undetectable">Indeks ARB: ?</string>
     <string name="data_source_title">Źródło danych</string>
-    <string name="data_source_description">Status ARB jest pobierany z bazy danych oparb.pages.dev i porównywany z aktualną wersją oprogramowania w telefonie.</string>
+    <string name="data_source_description">Status ARB nie jest odczytywany bezpośrednio ze sprzętu, lecz na podstawie źródeł online (oparb.pages.dev). Nie jest to surowy odczyt z telefonu.</string>
 </resources>
