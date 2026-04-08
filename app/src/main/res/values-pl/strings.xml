@@ -7,7 +7,7 @@
     <string name="fetching_db">Pobieranie bazy danych...</string>
     <string name="analyzing">Analizowanie...</string>
     <string name="unknown">Nieznany</string>
-    <string name="arb_index">Indeks ARB: %1$d</string>
+    <string name="arb_index">ARB: %1$d</string>
     <string name="share_msg_fused">Mój OnePlus (%1$s) jest ZABLOKOWANY (FUSED)! 😱 (ARB %2$d). Sprawdzone przez OnePlus ARB Checker.</string>
     <string name="share_msg_safe">Mój OnePlus (%1$s) jest BEZPIECZNY! ✅ (ARB 0). Sprawdzone przez OnePlus ARB Checker.</string>
     <string name="share_msg_unknown">Sprawdzam ARB dla OnePlus (%1$s) - Wersja nieznana ❓</string>
@@ -25,6 +25,9 @@
     <string name="details_format">Model OnePlus: %1$s\nWersja: %2$s\nNazwa urządzenia: %3$s</string>
     <string name="details_format_simple">Model OnePlus: %1$s\nWersja: %2$s</string>
     <string name="view_history">Zobacz historię firmware</string>
+    <string name="enable_root">Włącz tryb Root</string>
+    <string name="enable_root_subtitle">Pozwala na bezpośredni odczyt ARB z urządzenia</string>
+    <string name="root_not_available">Brak dostępu Root. Ten tryb jest niedostępny.</string>
     <string name="last_checked">Ostatnie sprawdzenie: %1$s</string>
     <string name="check_now">Sprawdź teraz</string>
     <string name="share">Udostępnij</string>
@@ -38,7 +41,7 @@
     <string name="interval_12h">12 godzin</string>
     <string name="interval_24h">24 godziny</string>
     <string name="enable_notifications">Włącz powiadomienia</string>
-    <string name="notification_subtitle">Powiadom mnie, jeśli znajdziesz ryzykowną aktualizację.</string>
+    <string name="notification_subtitle">Informuj o wykryciu aktualizacji podnoszących ARB</string>
     <string name="get_started">Zaczynamy</string>
     <string name="close">Zamknij</string>
     <string name="history_title">Historia Firmware</string>
@@ -52,6 +55,18 @@
     <string name="status_undetectable">ARB niewykrywalne</string>
     <string name="big_text_undetectable">Hmm...\nNiewykrywalne</string>
     <string name="arb_undetectable">Indeks ARB: ?</string>
-    <string name="data_source_title">Źródło danych</string>
-    <string name="data_source_description">Status ARB nie jest odczytywany bezpośrednio ze sprzętu, lecz na podstawie źródeł online (oparb.pages.dev). Nie jest to surowy odczyt z telefonu.</string>
+    <string name="data_source_title">Czym jest ARB?</string>
+    <string name="data_source_description_root">Te informacje zostały odczytane bezpośrednio z partycji sprzętowej Twojego urządzenia przy użyciu dostępu root. Jest to najdokładniejsza i najbardziej wiarygodna metoda.</string>
+    <string name="data_source_description_db">Te informacje pochodzą z bazy danych online utrzymywanej przez społeczność (oparb.pages.dev) na podstawie Twojej wersji oprogramowania. Zazwyczaj są one dokładne, ale mogą się różnić w zależności od regionu.</string>
+    <string name="source_root">Sprzęt (Root)</string>
+    <string name="source_db">Baza danych</string>
+    <string name="verified_root">Weryfikacja niskopoziomowa</string>
+    <string name="verified_db">Analiza wersji oprogramowania</string>
+    <string name="notification_arb_increase_title">Wykryto wzrost ARB!</string>
+    <string name="checking_root">Sprawdzanie ARB przez Root...</string>
+    <string name="db_label"> (Baza: %1$d)</string>
+    <string name="arb_mismatch_warning">Uwaga: ARB z bazy danych (%1$d) różni się od rzeczywistego (%2$d)!</string>
+    <string name="notification_arb_increase_content">Twój ARB zwiększył się z %1$d na %2$d po aktualizacji firmware.</string>
+    <string name="root_access_denied">Brak uprawnień Root</string>
+    <string name="root_access_denied_desc">Tryb Root jest włączony, ale nie udało się uzyskać uprawnień su.</string>
 </resources>

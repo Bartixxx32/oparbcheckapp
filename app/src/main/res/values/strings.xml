@@ -6,7 +6,7 @@
     <string name="fetching_db">Fetching Database...</string>
     <string name="analyzing">Analyzing...</string>
     <string name="unknown">Unknown</string>
-    <string name="arb_index">ARB Index: %1$d</string>
+    <string name="arb_index">ARB: %1$d</string>
     <string name="share_msg_fused">My OnePlus (%1$s) is FUSED! 😱 (ARB %2$d). Checked with OnePlus ARB Checker.</string>
     <string name="share_msg_safe">My OnePlus (%1$s) is SAFE! ✅ (ARB 0). Checked with OnePlus ARB Checker.</string>
     <string name="share_msg_unknown">Checking ARB for OnePlus (%1$s) - Version Unknown ❓</string>
@@ -24,6 +24,9 @@
     <string name="details_format">OnePlus Model: %1$s\nVersion: %2$s\nDevice Name: %3$s</string>
     <string name="details_format_simple">OnePlus Model: %1$s\nVersion: %2$s</string>
     <string name="view_history">View Firmware History</string>
+    <string name="enable_root">Enable Root Mode</string>
+    <string name="enable_root_subtitle">Allows direct ARB reading from device partitions</string>
+    <string name="root_not_available">Root access not detected. This mode is unavailable.</string>
     <string name="last_checked">Last checked: %1$s</string>
     <string name="check_now">Check Now</string>
     <string name="share">Share</string>
@@ -51,6 +54,18 @@
     <string name="status_undetectable">Undetectable ARB</string>
     <string name="big_text_undetectable">Hmm...\nUndetectable</string>
     <string name="arb_undetectable">ARB Index: ?</string>
-    <string name="data_source_title">Data Source</string>
-    <string name="data_source_description">ARB status is not read directly from the hardware, but based on online sources (oparb.pages.dev). This is not a raw hardware read.</string>
+    <string name="data_source_title">What is ARB?</string>
+    <string name="data_source_description_root">This information was read directly from your device\'s hardware partition using root access. This is the most accurate and reliable method.</string>
+    <string name="data_source_description_db">This information comes from the community-maintained online database (oparb.pages.dev) based on your firmware version. It is usually accurate but may vary between regions.</string>
+    <string name="source_root">Hardware (Root)</string>
+    <string name="source_db">Database</string>
+    <string name="verified_root">Low-Level Verification</string>
+    <string name="verified_db">Software Version Analysis</string>
+    <string name="checking_root">Checking ARB via Root...</string>
+    <string name="db_label"> (DB: %1$d)</string>
+    <string name="arb_mismatch_warning">Warning: Database ARB (%1$d) differs from physical ARB (%2$d)!</string>
+    <string name="notification_arb_increase_title">ARB Increase Detected!</string>
+    <string name="notification_arb_increase_content">Your ARB increased from %1$d to %2$d after firmware update.</string>
+    <string name="root_access_denied">Root Access Denied</string>
+    <string name="root_access_denied_desc">Root mode is enabled but we couldn\'t get su permissions.</string>
 </resources>
