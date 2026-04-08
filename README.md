@@ -31,7 +31,7 @@ If a future update is known to increase the ARB index, the app proactively warns
 
 ## 📸 Screenshots
 
-| Welcome Wizard | Status: Safe | Status: Fused | Firmware History |
+| No Root | No Root | Root | Root |
 | :---: | :---: | :---: | :---: |
 | ![Welcome](fastlane/metadata/android/en-US/images/phoneScreenshot/1.jpg) | ![Safe](fastlane/metadata/android/en-US/images/phoneScreenshot/2.jpg) | ![Fused](fastlane/metadata/android/en-US/images/phoneScreenshot/3.png) | ![History](fastlane/metadata/android/en-US/images/phoneScreenshot/4.png) |
 
