@@ -15,19 +15,8 @@
           <targets>
             <Target type="DEFAULT_BOOT">
               <handle>
-                <DeviceId pluginId="FirebaseDirectAccess" identifier="reservation=projects/bartpan-251cd/deviceSessions/session-1aqoio87xnrdo" />
+                <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\barto\.android\avd\Pixel_10_Pro_XL.avd" />
               </handle>
-              <template>
-                <DeviceId pluginId="FirebaseDirectAccess" type="TEMPLATE" identifier="model_id=tokay/34" />
-              </template>
-            </Target>
-            <Target type="DEFAULT_BOOT">
-              <handle>
-                <DeviceId pluginId="FirebaseDirectAccess" identifier="reservation=projects/bartpan-251cd/deviceSessions/session-2z4hjghr2j2t1" />
-              </handle>
-              <template>
-                <DeviceId pluginId="FirebaseDirectAccess" type="TEMPLATE" identifier="model_id=tokay/35" />
-              </template>
             </Target>
           </targets>
         </DialogSelection>
