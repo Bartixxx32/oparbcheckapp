@@ -15,13 +15,19 @@
           <targets>
             <Target type="DEFAULT_BOOT">
               <handle>
-                <DeviceId pluginId="PhysicalDevice" identifier="serial=3B15BL00S3D00000" />
+                <DeviceId pluginId="FirebaseDirectAccess" identifier="reservation=projects/bartpan-251cd/deviceSessions/session-1aqoio87xnrdo" />
               </handle>
+              <template>
+                <DeviceId pluginId="FirebaseDirectAccess" type="TEMPLATE" identifier="model_id=tokay/34" />
+              </template>
             </Target>
             <Target type="DEFAULT_BOOT">
               <handle>
-                <DeviceId pluginId="PhysicalDevice" identifier="serial=0e06e7a0" />
+                <DeviceId pluginId="FirebaseDirectAccess" identifier="reservation=projects/bartpan-251cd/deviceSessions/session-2z4hjghr2j2t1" />
               </handle>
+              <template>
+                <DeviceId pluginId="FirebaseDirectAccess" type="TEMPLATE" identifier="model_id=tokay/35" />
+              </template>
             </Target>
           </targets>
         </DialogSelection>

@@ -102,12 +102,17 @@ object ArbExtractor {
                 }
 
                 val oemMdOff = headerOff + 36 + commonSz + qtiSz
-                val arbIndex = segBuffer.getInt(oemMdOff + 8)
-                Log.d(TAG, "Extracted ARB Index: $arbIndex")
+                if (oemMdOff + 12 > hashSize) {
+                    println("OEM Metadata out of bounds: $oemMdOff + 12 > $hashSize")
+                    return null
+                }
+                val arbIndex = ByteBuffer.wrap(seg).order(ByteOrder.LITTLE_ENDIAN).getInt(oemMdOff + 8)
+                println("Extracted ARB Index: $arbIndex")
                 arbIndex
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error extracting ARB", e)
+            println("Error extracting ARB: ${e.message}")
+            e.printStackTrace()
             null
         }
     }

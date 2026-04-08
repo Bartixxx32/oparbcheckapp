@@ -56,6 +56,9 @@ class ArbExtractorTest {
         file.writeBytes(content)
 
         val result = ArbExtractor.extractArbFromImage(file)
+        if (result == null) {
+             throw RuntimeException("Extraction failed - result was null")
+        }
         assertEquals(4, result)
     }
 }
