@@ -1,11 +1,9 @@
-OnePlus ARB Checker is a utility designed for OnePlus enthusiasts and power users who want to keep their devices safe from unintended Anti-Rollback (ARB) increases.
+OnePlus ARB Checker is a professional utility for OnePlus power users. It protects your device from unintended Anti-Rollback (ARB) increases by verifying firmware integrity.
 
-Features:
-- Instant ARB status check for your current firmware.
-- Comprehensive firmware history database for supported OnePlus models.
-- Visual indicators (Safe/Fused) based on real-world data.
-- Background monitoring with notifications for risky system updates.
-- Material 3 design with Dynamic Color support.
-- Fully private and open-source.
+Key Features:
+- Dual-Mode Verification: Low-level hardware reading (Root) or Software version analysis (Database).
+- Real-time Protection: Background monitoring with alerts before you install risky updates.
+- Deep Insights: Comprehensive firmware history with regional data (GLO, EU, IND, etc.).
+- Modern & Private: Material 3 UI with Dynamic Color, fully open-source, and offline-first.
 
-Stay safe while updating your OnePlus device!
+Ensure your OnePlus stays safe during every system update!

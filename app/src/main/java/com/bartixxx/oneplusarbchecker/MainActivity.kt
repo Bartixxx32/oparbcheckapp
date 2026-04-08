@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -47,6 +48,7 @@ import com.bartixxx.oneplusarbchecker.utils.SystemUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
@@ -64,9 +66,6 @@ class MainActivity : ComponentActivity() {
         
         val settingsRepo = SettingsRepository(this)
         
-        // Share state needs to be managed here to pass to TopBar (action) and Screen (to update it)
-        var shareText by mutableStateOf("")
-
         // Schedule work only if NOT first run (otherwise wizard handles it)
         lifecycleScope.launch {
              if (!settingsRepo.firstRunFlow.first()) {
@@ -82,22 +81,11 @@ class MainActivity : ComponentActivity() {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     topBar = {
-                        MainTopAppBar(settingsRepo, onShare = {
-                            if (shareText.isNotEmpty()) {
-                                val sendIntent: Intent = Intent().apply {
-                                    action = Intent.ACTION_SEND
-                                    putExtra(Intent.EXTRA_TEXT, shareText)
-                                    type = "text/plain"
-                                }
-                                val shareIntent = Intent.createChooser(sendIntent, null)
-                                startActivity(shareIntent)
-                            }
-                        })
+                        MainTopAppBar(settingsRepo)
                     }
                 ) { innerPadding ->
                     FusedStatusScreen(
-                        modifier = Modifier.padding(innerPadding),
-                        onUpdateShareText = { newText -> shareText = newText }
+                        modifier = Modifier.padding(innerPadding)
                     )
                     
                     if (firstRun) {
@@ -151,7 +139,8 @@ private sealed class CheckResult {
         val statusText: String,
         val detailsText: String,
         val warningText: String?,
-        val deviceData: DeviceData?
+        val deviceData: DeviceData?,
+        val rootArb: Int? = null
     ) : CheckResult()
     data class Error(val message: String) : CheckResult()
 }
@@ -159,8 +148,7 @@ private sealed class CheckResult {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FusedStatusScreen(
-    modifier: Modifier = Modifier,
-    onUpdateShareText: (String) -> Unit
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val settingsRepo = remember { SettingsRepository(context) }
@@ -175,6 +163,7 @@ fun FusedStatusScreen(
     var showHistorySheet by remember { mutableStateOf(false) }
     
     val lastCheckTime by settingsRepo.lastCheckTimestampFlow.collectAsState(initial = 0L)
+    val firstRun by settingsRepo.firstRunFlow.collectAsState(initial = null)
     val scope = rememberCoroutineScope()
 
     fun checkStatus() {
@@ -186,6 +175,25 @@ fun FusedStatusScreen(
                 val model = SystemUtils.getSystemProperty("ro.product.model") ?: context.getString(R.string.unknown)
                 val version = SystemUtils.getSystemProperty("ro.build.display.id") ?: context.getString(R.string.unknown)
 
+                val rootModeEnabled = settingsRepo.rootModeEnabledFlow.first()
+                var rootArb: Int? = null
+                
+                if (rootModeEnabled && SystemUtils.isRootAvailable()) {
+                    loadingMessage = context.getString(R.string.checking_root)
+                    // Try xbl_config then xbl
+                    val partitionPath = SystemUtils.getPartitionPath("xbl_config") 
+                        ?: SystemUtils.getPartitionPath("xbl")
+                        
+                    if (partitionPath != null) {
+                        val tempFile = File(context.cacheDir, "xbl_img.img")
+                        val success = SystemUtils.runRootCommand("dd if=$partitionPath of=${tempFile.absolutePath} bs=4096 count=1024")
+                        if (success && tempFile.exists()) {
+                            rootArb = com.bartixxx.oneplusarbchecker.utils.ArbExtractor.extractArbFromImage(tempFile)
+                            tempFile.delete()
+                        }
+                    }
+                }
+
                 loadingMessage = context.getString(R.string.fetching_db)
                 // 2. Fetch Database
                 val api = com.bartixxx.oneplusarbchecker.data.RetrofitInstance.api
@@ -194,11 +202,11 @@ fun FusedStatusScreen(
                 val deviceData = database[model]
                 currentDeviceData = deviceData
 
-                if (deviceData != null) {
+                if (deviceData != null || rootArb != null) {
                     
-                    var matchedVersion = deviceData.versions[version]
+                    var matchedVersion = deviceData?.versions?.get(version)
                     
-                    if (matchedVersion == null) {
+                    if (matchedVersion == null && deviceData != null) {
                          val key = deviceData.versions.keys.find { it.contains(version, ignoreCase = true) || version.contains(it, ignoreCase = true) }
                          if (key != null) {
                              matchedVersion = deviceData.versions[key]
@@ -208,77 +216,104 @@ fun FusedStatusScreen(
                     // Get current region
                     currentRegion = matchedVersion?.regions?.joinToString(", ")
                     
-                    val shareMsg: String
                     var warningText: String? = null
-                    val isFused: Boolean?
-                    val statusText: String
+                    var isFused: Boolean?
+                    var statusText: String
                     
-                    if (matchedVersion != null) {
+                    if (rootArb != null) {
+                        val dbArbText = if (matchedVersion != null) context.getString(R.string.db_label, matchedVersion.arb) else ""
+                        statusText = "ARB: $rootArb$dbArbText"
+                        isFused = rootArb > 0
+                        
+                        // Compare with DB if available
+                        if (matchedVersion != null && matchedVersion.arb != rootArb) {
+                             warningText = context.getString(R.string.arb_mismatch_warning, matchedVersion.arb, rootArb)
+                        }
+                    } else if (matchedVersion != null) {
                         val arb = matchedVersion.arb
                         if (matchedVersion.isHardcoded) {
                             isFused = null
                             statusText = context.getString(R.string.status_undetectable)
-                            shareMsg = context.getString(R.string.share_msg_unknown, model)
 
                             // Check for future updates even for undetectable versions
-                            val maxArb = deviceData.versions.values.filter { !it.isHardcoded }.maxOfOrNull { it.arb } ?: 0
+                            val maxArb = deviceData?.versions?.values?.filter { !it.isHardcoded }?.maxOfOrNull { it.arb } ?: 0
                             if (maxArb > 0) {
                                 warningText = context.getString(R.string.warning_future_update, maxArb)
                             }
                         } else if (arb > 0) {
                             isFused = true
                             statusText = context.getString(R.string.arb_index, arb)
-                            shareMsg = context.getString(R.string.share_msg_fused, model, arb)
                         } else {
                             isFused = false
                             statusText = context.getString(R.string.arb_index, arb)
-                            shareMsg = context.getString(R.string.share_msg_safe, model)
                             
                             // Check for future updates
-                            val maxArb = deviceData.versions.values.filter { !it.isHardcoded }.maxOfOrNull { it.arb } ?: 0
+                            val maxArb = deviceData?.versions?.values?.filter { !it.isHardcoded }?.maxOfOrNull { it.arb } ?: 0
                             if (maxArb > arb) {
                                 warningText = context.getString(R.string.warning_future_update, maxArb)
                             }
                         }
                     } else {
                         statusText = context.getString(R.string.status_unknown_version)
-                        shareMsg = context.getString(R.string.share_msg_unknown, model)
                         isFused = null
                     }
                     
-                    val detailsText = context.getString(R.string.details_format, model, version, deviceData.deviceName)
-                    onUpdateShareText(shareMsg)
-                    
+                    val detailsText = if (deviceData != null) {
+                        context.getString(R.string.details_format, model, version, deviceData.deviceName)
+                    } else {
+                        context.getString(R.string.details_format_simple, model, version)
+                    }
+
+                    // Check if root was actually available if mode was enabled (even if we have DB data)
+                    if (rootModeEnabled && !SystemUtils.isRootAvailable()) {
+                        val rootWarning = context.getString(R.string.root_access_denied_desc)
+                        warningText = if (warningText == null) rootWarning else "$warningText\n\n$rootWarning"
+                    }
+
                     checkResult = CheckResult.Success(
                         isFused = isFused,
                         isUndetectable = matchedVersion?.isHardcoded == true,
                         statusText = statusText,
                         detailsText = detailsText,
                         warningText = warningText,
-                        deviceData = deviceData
+                        deviceData = deviceData,
+                        rootArb = rootArb
                     )
                     
+                    // Update timestamp on successful manual check
+                    settingsRepo.setLastCheckTimestamp(System.currentTimeMillis())
+                    
+                    // Save last known ARB for background monitoring
+                    val finalArb = rootArb ?: matchedVersion?.arb ?: -1
+                    if (finalArb != -1) {
+                        settingsRepo.setLastKnownArb(finalArb)
+                    }
+                    settingsRepo.setLastKnownBuildId(version)
+
                     // Haptic feedback based on result
                     when (isFused) {
                         true -> HapticUtils.vibrateWarning(context)
                         false -> HapticUtils.vibrateSuccess(context)
                         else -> HapticUtils.vibrateTick(context)
                     }
-                    
-                    // Update timestamp on successful manual check
-                    settingsRepo.setLastCheckTimestamp(System.currentTimeMillis())
 
                 } else {
-                   val detailsText = context.getString(R.string.details_format_simple, model, version)
-                   onUpdateShareText(context.getString(R.string.share_msg_unsupported, model))
-                   checkResult = CheckResult.Success(
-                       isFused = null,
-                       isUndetectable = false,
-                       statusText = context.getString(R.string.status_unsupported),
-                       detailsText = detailsText,
-                       warningText = null,
-                       deviceData = null
-                   )
+                    val detailsText = context.getString(R.string.details_format_simple, model, version)
+                    
+                    var warningText: String? = null
+                    // Check if root was actually available if mode was enabled
+                    if (rootModeEnabled && !SystemUtils.isRootAvailable()) {
+                        warningText = context.getString(R.string.root_access_denied_desc)
+                    }
+
+                    checkResult = CheckResult.Success(
+                        isFused = null,
+                        isUndetectable = false,
+                        statusText = context.getString(R.string.status_unsupported),
+                        detailsText = detailsText,
+                        warningText = warningText,
+                        deviceData = null
+                    )
                 }
 
             } catch (e: Exception) {
@@ -290,8 +325,10 @@ fun FusedStatusScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        checkStatus()
+    LaunchedEffect(firstRun) {
+        if (firstRun == false) {
+            checkStatus()
+        }
     }
 
     // Pull-to-refresh
@@ -347,6 +384,7 @@ fun FusedStatusScreen(
                                 deviceData = result.deviceData,
                                 currentRegion = currentRegion,
                                 lastCheckTime = lastCheckTime,
+                                isRootVerified = result.rootArb != null,
                                 onShowHistory = { showHistorySheet = true }
                             )
                         }
@@ -408,6 +446,7 @@ private fun StatusContent(
     deviceData: DeviceData?,
     currentRegion: String?,
     lastCheckTime: Long,
+    isRootVerified: Boolean,
     onShowHistory: () -> Unit
 ) {
     val context = LocalContext.current
@@ -440,13 +479,38 @@ private fun StatusContent(
         Spacer(modifier = Modifier.height(24.dp))
         Text(text = statusText, fontSize = 24.sp, fontWeight = FontWeight.Medium)
         
-        if (currentRegion != null) {
+        if (isRootVerified || deviceData != null) {
             Spacer(modifier = Modifier.height(8.dp))
-            AssistChip(
-                onClick = {},
-                label = { Text(stringResource(R.string.region_label, currentRegion)) },
-                leadingIcon = { Text("🌍", fontSize = 14.sp) }
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (isRootVerified) {
+                    AssistChip(
+                        onClick = {},
+                        label = { Text(stringResource(R.string.verified_root)) },
+                        leadingIcon = { Text("🛡️", fontSize = 14.sp) },
+                        colors = AssistChipDefaults.assistChipColors(
+                            labelColor = MaterialTheme.colorScheme.primary,
+                            leadingIconContentColor = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                } else if (deviceData != null) {
+                    AssistChip(
+                        onClick = {},
+                        label = { Text(stringResource(R.string.verified_db)) },
+                        leadingIcon = { Text("ℹ️", fontSize = 14.sp) }
+                    )
+                }
+
+                if (currentRegion != null) {
+                    AssistChip(
+                        onClick = {},
+                        label = { Text(stringResource(R.string.region_label, currentRegion)) },
+                        leadingIcon = { Text("🌍", fontSize = 14.sp) }
+                    )
+                }
+            }
         }
         
         if (warningText != null) {
@@ -508,7 +572,10 @@ private fun StatusContent(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = stringResource(R.string.data_source_description),
+                text = if (isRootVerified) 
+                    stringResource(R.string.data_source_description_root) 
+                else 
+                    stringResource(R.string.data_source_description_db),
                 style = MaterialTheme.typography.labelSmall,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
@@ -520,16 +587,13 @@ private fun StatusContent(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainTopAppBar(settingsRepo: SettingsRepository, onShare: () -> Unit) {
+fun MainTopAppBar(settingsRepo: SettingsRepository) {
     val context = LocalContext.current
     var showSettings by remember { mutableStateOf(false) }
 
     TopAppBar(
         title = { Text(stringResource(R.string.app_name)) },
         actions = {
-            IconButton(onClick = { HapticUtils.vibrateClick(context); onShare() }) {
-                Icon(Icons.Default.Share, contentDescription = stringResource(R.string.share))
-            }
             IconButton(onClick = { HapticUtils.vibrateClick(context); showSettings = true }) {
                 Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings))
             }
@@ -550,6 +614,14 @@ fun WelcomeDialog(settingsRepo: SettingsRepository, onFinished: (Long, Boolean) 
     // Local state for the wizard before saving
     var interval by remember { mutableStateOf(1L) }
     var notifications by remember { mutableStateOf(true) }
+    var rootMode by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        val available = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            SystemUtils.isRootAvailable()
+        }
+        rootMode = available
+    }
 
     AlertDialog(
         onDismissRequest = { /* Prevent dismissal */ },
@@ -594,6 +666,34 @@ fun WelcomeDialog(settingsRepo: SettingsRepository, onFinished: (Long, Boolean) 
                          Text(stringResource(R.string.notification_subtitle), fontSize = 12.sp, color = Color.Gray)
                     }
                 }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                var isRootAvailable by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) {
+                    isRootAvailable = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        SystemUtils.isRootAvailable()
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.alpha(if (isRootAvailable) 1f else 0.5f)
+                ) {
+                    Checkbox(
+                        checked = rootMode,
+                        enabled = isRootAvailable,
+                        onCheckedChange = { HapticUtils.vibrateTick(context); rootMode = it }
+                    )
+                    Column {
+                        Text(stringResource(R.string.enable_root))
+                        Text(
+                            text = if (isRootAvailable) stringResource(R.string.enable_root_subtitle) else stringResource(R.string.root_not_available),
+                            fontSize = 12.sp,
+                            color = if (isRootAvailable) Color.Gray else MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
@@ -602,6 +702,7 @@ fun WelcomeDialog(settingsRepo: SettingsRepository, onFinished: (Long, Boolean) 
                     scope.launch {
                         settingsRepo.setCheckInterval(interval)
                         settingsRepo.setNotificationsEnabled(notifications)
+                        settingsRepo.setRootModeEnabled(rootMode)
                         settingsRepo.setFirstRunCompleted()
                         onFinished(interval, notifications)
                     }
@@ -620,6 +721,7 @@ fun SettingsDialog(settingsRepo: SettingsRepository, onDismiss: () -> Unit) {
     
     val currentInterval by settingsRepo.checkIntervalFlow.collectAsState(initial = 1L)
     val notificationsEnabled by settingsRepo.notificationsEnabledFlow.collectAsState(initial = false)
+    val rootModeEnabled by settingsRepo.rootModeEnabledFlow.collectAsState(initial = false)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -662,7 +764,41 @@ fun SettingsDialog(settingsRepo: SettingsRepository, onDismiss: () -> Unit) {
                             }
                         }
                     )
-                    Text(stringResource(R.string.enable_notifications))
+                    Column {
+                        Text(stringResource(R.string.enable_notifications))
+                        Text(stringResource(R.string.notification_subtitle), fontSize = 12.sp, color = Color.Gray)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                var isRootAvailable by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) {
+                    isRootAvailable = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        SystemUtils.isRootAvailable()
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.alpha(if (isRootAvailable) 1f else 0.5f)
+                ) {
+                    Checkbox(
+                        checked = rootModeEnabled,
+                        enabled = isRootAvailable,
+                        onCheckedChange = { enabled ->
+                            HapticUtils.vibrateTick(context)
+                            scope.launch { settingsRepo.setRootModeEnabled(enabled) }
+                        }
+                    )
+                    Column {
+                        Text(stringResource(R.string.enable_root))
+                        Text(
+                            text = if (isRootAvailable) stringResource(R.string.enable_root_subtitle) else stringResource(R.string.root_not_available),
+                            fontSize = 12.sp,
+                            color = if (isRootAvailable) Color.Gray else MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
         },

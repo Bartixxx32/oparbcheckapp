@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -19,6 +20,42 @@ class SettingsRepository(private val context: Context) {
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
         val FIRST_RUN = booleanPreferencesKey("first_run")
         val LAST_CHECK_TIMESTAMP = longPreferencesKey("last_check_timestamp")
+        val ROOT_MODE_ENABLED = booleanPreferencesKey("root_mode_enabled")
+        val LAST_KNOWN_ARB = longPreferencesKey("last_known_arb")
+        val LAST_KNOWN_BUILD_ID = stringPreferencesKey("last_known_build_id")
+    }
+
+    val lastKnownBuildIdFlow: Flow<String?> = context.dataStore.data
+        .map { preferences ->
+            preferences[LAST_KNOWN_BUILD_ID]
+        }
+
+    suspend fun setLastKnownBuildId(buildId: String) {
+        context.dataStore.edit { preferences ->
+            preferences[LAST_KNOWN_BUILD_ID] = buildId
+        }
+    }
+
+    val lastKnownArbFlow: Flow<Int> = context.dataStore.data
+        .map { preferences ->
+            preferences[LAST_KNOWN_ARB]?.toInt() ?: -1
+        }
+
+    suspend fun setLastKnownArb(arb: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[LAST_KNOWN_ARB] = arb.toLong()
+        }
+    }
+
+    val rootModeEnabledFlow: Flow<Boolean> = context.dataStore.data
+        .map { preferences ->
+            preferences[ROOT_MODE_ENABLED] ?: false
+        }
+    
+    suspend fun setRootModeEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[ROOT_MODE_ENABLED] = enabled
+        }
     }
 
     val checkIntervalFlow: Flow<Long> = context.dataStore.data

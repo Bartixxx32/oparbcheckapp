@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -13,6 +14,7 @@ import com.bartixxx.oneplusarbchecker.MainActivity
 import com.bartixxx.oneplusarbchecker.R
 import com.bartixxx.oneplusarbchecker.data.*
 import com.bartixxx.oneplusarbchecker.utils.SystemUtils
+import com.bartixxx.oneplusarbchecker.utils.ArbExtractor
 import kotlinx.coroutines.flow.first
 
 class ArbCheckWorker(
@@ -20,55 +22,116 @@ class ArbCheckWorker(
     workerParams: WorkerParameters
 ) : CoroutineWorker(context, workerParams) {
 
+    companion object {
+        private const val TAG = "ARB_CHECKER"
+    }
+
     override suspend fun doWork(): Result {
+        Log.d(TAG, "ArbCheckWorker: Starting background check...")
         return try {
-            val settingsRepo = com.bartixxx.oneplusarbchecker.data.SettingsRepository(applicationContext)
-            // Check if notifications are enabled
+            val settingsRepo = SettingsRepository(applicationContext)
             val notificationsEnabled = settingsRepo.notificationsEnabledFlow.first()
+            val rootModeEnabled = settingsRepo.rootModeEnabledFlow.first()
+            val lastKnownArb = settingsRepo.lastKnownArbFlow.first()
+            val lastKnownBuildId = settingsRepo.lastKnownBuildIdFlow.first()
             
             if (!notificationsEnabled) {
-                return Result.success() // Skip work if notifications disabled
+                Log.d(TAG, "ArbCheckWorker: Notifications disabled, skipping.")
+                return Result.success()
             }
 
-            val model = SystemUtils.getSystemProperty("ro.product.model") ?: return Result.success()
-            val version = SystemUtils.getSystemProperty("ro.build.display.id") ?: return Result.success()
+            val model = SystemUtils.getSystemProperty("ro.product.model") ?: "Unknown"
+            val version = SystemUtils.getSystemProperty("ro.build.display.id") ?: "Unknown"
+            Log.d(TAG, "ArbCheckWorker: Device=$model, Build=$version")
 
+            var currentArb = -1
+            val buildChanged = version != lastKnownBuildId
+            Log.d(TAG, "ArbCheckWorker: Build changed: $buildChanged (Last: $lastKnownBuildId)")
+
+            // 1. Try Root ONLY IF build changed to avoid frequent "su" notifications
+            if (rootModeEnabled && buildChanged && SystemUtils.isRootAvailable()) {
+                Log.d(TAG, "ArbCheckWorker: Root mode active and build changed, attempting extraction...")
+                
+                // Try xbl_config then xbl
+                val partitionPath = SystemUtils.getPartitionPath("xbl_config") 
+                    ?: SystemUtils.getPartitionPath("xbl")
+                
+                if (partitionPath != null) {
+                    val tempFile = java.io.File(applicationContext.cacheDir, "xbl_bg.img")
+                    val success = SystemUtils.runRootCommand("dd if=$partitionPath of=${tempFile.absolutePath} bs=4096 count=1024")
+                    if (success && tempFile.exists()) {
+                        currentArb = ArbExtractor.extractArbFromImage(tempFile) ?: -1
+                        Log.d(TAG, "ArbCheckWorker: Root extraction result: $currentArb from $partitionPath")
+                        tempFile.delete()
+                    }
+                } else {
+                    Log.e(TAG, "ArbCheckWorker: Neither xbl_config nor xbl partitions found!")
+                }
+            } else if (rootModeEnabled && !buildChanged) {
+                Log.d(TAG, "ArbCheckWorker: Root mode active but build NOT changed, skipping root check.")
+            }
+
+            // 2. Fetch Database
+            Log.d(TAG, "ArbCheckWorker: Fetching database...")
             val api = RetrofitInstance.api
-            try { api.recordHit() } catch (e: Exception) { e.printStackTrace() }
+            try { api.recordHit() } catch (e: Exception) { Log.e(TAG, "Hit record failed", e) }
             val database = api.getDatabase()
+            val deviceData = database[model]
 
-            val deviceData = database[model] ?: return Result.success()
-            
-            // Find current version ARB
-            var matchedVersion = deviceData.versions[version]
-            if (matchedVersion == null) {
-                 val key = deviceData.versions.keys.find { it.contains(version, ignoreCase = true) || version.contains(it, ignoreCase = true) }
-                 if (key != null) {
-                     matchedVersion = deviceData.versions[key]
-                 }
+            // If we didn't use root, use DB as fallback
+            if (currentArb == -1 && deviceData != null) {
+                Log.d(TAG, "ArbCheckWorker: Root failed or not used, checking DB for $version")
+                var matchedVersion = deviceData.versions[version]
+                if (matchedVersion == null) {
+                    val key = deviceData.versions.keys.find { it.contains(version, ignoreCase = true) || version.contains(it, ignoreCase = true) }
+                    if (key != null) {
+                        matchedVersion = deviceData.versions[key]
+                        Log.d(TAG, "ArbCheckWorker: Partial match found: $key")
+                    }
+                }
+                currentArb = matchedVersion?.arb ?: -1
+            }
+
+            Log.d(TAG, "ArbCheckWorker: Final ARB calculation: Current=$currentArb, LastKnown=$lastKnownArb")
+
+            // 3. Logic: If currentArb > lastKnownArb, we have an increase!
+            if (lastKnownArb != -1 && currentArb > lastKnownArb) {
+                Log.i(TAG, "ArbCheckWorker: ARB INCREASE DETECTED! $lastKnownArb -> $currentArb")
+                sendNotification(
+                    applicationContext.getString(R.string.notification_arb_increase_title),
+                    applicationContext.getString(R.string.notification_arb_increase_content, lastKnownArb, currentArb)
+                )
+            } 
+            else if (deviceData != null) {
+                val maxArbInDb = deviceData.versions.values
+                    .filter { !it.isHardcoded }
+                    .maxOfOrNull { it.arb } ?: 0
+
+                if (maxArbInDb > 0 && maxArbInDb > currentArb && currentArb != -1) {
+                    Log.i(TAG, "ArbCheckWorker: Higher ARB available in DB: $maxArbInDb > $currentArb")
+                    sendNotification(
+                        applicationContext.getString(R.string.notification_title),
+                        applicationContext.getString(R.string.notification_content, maxArbInDb)
+                    )
+                }
             }
             
-            val currentArb = matchedVersion?.arb ?: 0
-            
-            // Check for max ARB, ignoring undetectable (hardcoded) versions
-            val maxArb = deviceData.versions.values
-                .filter { !it.isHardcoded }
-                .maxOfOrNull { it.arb } ?: 0
-
-            if (maxArb > 0 && maxArb > currentArb) {
-                sendNotification(maxArb)
+            // Update last known state
+            if (currentArb != -1) {
+                settingsRepo.setLastKnownArb(currentArb)
             }
-            
+            settingsRepo.setLastKnownBuildId(version)
             settingsRepo.setLastCheckTimestamp(System.currentTimeMillis())
 
+            Log.d(TAG, "ArbCheckWorker: Work completed successfully.")
             Result.success()
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "ArbCheckWorker: Error during work", e)
             Result.retry()
         }
     }
 
-    private fun sendNotification(maxArb: Int) {
+    private fun sendNotification(title: String, content: String) {
         val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channelId = "arb_channel"
 
@@ -82,9 +145,6 @@ class ArbCheckWorker(
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
         val pendingIntent = PendingIntent.getActivity(applicationContext, 0, intent, PendingIntent.FLAG_IMMUTABLE)
-
-        val title = applicationContext.getString(R.string.notification_title)
-        val content = applicationContext.getString(R.string.notification_content, maxArb)
 
         val notification = NotificationCompat.Builder(applicationContext, channelId)
             .setSmallIcon(R.drawable.ic_notification)
