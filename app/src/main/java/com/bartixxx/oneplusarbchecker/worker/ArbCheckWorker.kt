@@ -24,6 +24,7 @@ class ArbCheckWorker(
 
     companion object {
         private const val TAG = "ARB_CHECKER"
+        private var appUpdateNotifiedThisBoot = false
     }
 
     override suspend fun doWork(): Result {
@@ -35,6 +36,25 @@ class ArbCheckWorker(
             val lastKnownArb = settingsRepo.lastKnownArbFlow.first()
             val lastKnownBuildId = settingsRepo.lastKnownBuildIdFlow.first()
             
+            // Check for App Update first (GitHub)
+            if (!appUpdateNotifiedThisBoot) {
+                try {
+                    val api = RetrofitInstance.api
+                    val latestRelease = api.getLatestRelease()
+                    val currentVersion = applicationContext.packageManager.getPackageInfo(applicationContext.packageName, 0).versionName ?: "0.0.0"
+                    
+                    val latestClean = latestRelease.tagName.replace("v", "").trim()
+                    val currentClean = currentVersion.replace("v", "").trim()
+                    
+                    if (latestClean != currentClean && isVersionNewer(currentClean, latestClean)) {
+                        sendAppUpdateNotification(latestRelease.tagName)
+                        appUpdateNotifiedThisBoot = true
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "App update check failed in background", e)
+                }
+            }
+
             if (!notificationsEnabled) {
                 Log.d(TAG, "ArbCheckWorker: Notifications disabled, skipping.")
                 return Result.success()
@@ -189,5 +209,51 @@ class ArbCheckWorker(
             .build()
 
         notificationManager.notify(1, notification)
+    }
+
+    private fun sendAppUpdateNotification(tagName: String) {
+        val title = applicationContext.getString(R.string.update_available_title)
+        val content = applicationContext.getString(R.string.update_available_msg, tagName)
+        val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val channelId = "app_update_channel"
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channelName = "App Updates"
+            val channel = NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_DEFAULT)
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val intent = Intent(applicationContext, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pendingIntent = PendingIntent.getActivity(applicationContext, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+
+        val notification = NotificationCompat.Builder(applicationContext, channelId)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(content)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+
+        notificationManager.notify(2, notification)
+    }
+
+    private fun isVersionNewer(current: String, latest: String): Boolean {
+        return try {
+            val currentParts = current.split(".").map { it.filter { c -> c.isDigit() }.toInt() }
+            val latestParts = latest.split(".").map { it.filter { c -> c.isDigit() }.toInt() }
+            
+            for (i in 0 until maxOf(currentParts.size, latestParts.size)) {
+                val curr = currentParts.getOrNull(i) ?: 0
+                val lat = latestParts.getOrNull(i) ?: 0
+                if (lat > curr) return true
+                if (lat < curr) return false
+            }
+            false
+        } catch (e: Exception) {
+            latest != current
+        }
     }
 }

@@ -245,8 +245,8 @@ fun FusedStatusScreen(
                                          (deviceData?.deviceName?.contains("OnePlus 13", ignoreCase = true) == true) ||
                                          (deviceData?.deviceName?.contains("OnePlus 12R", ignoreCase = true) == true)
 
-                val isWidevineSuspicious = widevineInfo != null && (
-                    (widevineInfo.first != "L1" && !isBootloaderUnlocked) || 
+                val isWidevineSuspicious = widevineInfo != null && !isBootloaderUnlocked && (
+                    widevineInfo.first != "L1" ||
                     (widevineInfo.second != "Unknown" && widevineInfo.second != "N/A" && widevineInfo.second.length > 6)
                 )
                 val isConverted = (!hasBarometer && isBarometerRelevant) || isWidevineSuspicious
@@ -742,22 +742,18 @@ private fun StatusContent(
                     }
                     
                     if (isWidevineSuspicious && widevineInfo != null) {
-                        val reason = if (widevineInfo.first != "L1" && !isBootloaderUnlocked) {
+                        val reason = if (widevineInfo.first != "L1") {
                             stringResource(R.string.conversion_warning_widevine_level, widevineInfo.first)
-                        } else if (widevineInfo.second.length > 6) {
-                            stringResource(R.string.conversion_warning_widevine_id)
                         } else {
-                            null
+                            stringResource(R.string.conversion_warning_widevine_id)
                         }
                         
-                        if (reason != null) {
-                            Text(
-                                text = "• $reason",
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                fontSize = 12.sp,
-                                textAlign = TextAlign.Center
-                            )
-                        }
+                        Text(
+                            text = "• $reason",
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
