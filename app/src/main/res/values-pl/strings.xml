@@ -74,4 +74,7 @@
     <string name="conversion_warning_widevine_level">Poziom Widevine to %1$s (wymagany L1)</string>
     <string name="conversion_warning_widevine_id">Identyfikator Widevine System ID jest za długi</string>
     <string name="conversion_warning_footer">Modele chińskie często posiadają różnice sprzętowe, które powodują te objawy podczas korzystania z globalnego oprogramowania.</string>
+    <string name="update_available_title">Dostępna aktualizacja</string>
+    <string name="update_available_msg">Nowa wersja OnePlus ARB Checker (%1$s) jest dostępna na GitHub.</string>
+    <string name="download">Pobierz</string>
 </resources>

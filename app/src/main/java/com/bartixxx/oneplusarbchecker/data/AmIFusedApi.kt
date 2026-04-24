@@ -16,4 +16,7 @@ interface AmIFusedApi {
         @Query("is_converted") isConverted: Boolean? = null,
         @Query("is_manual") isManual: Boolean = false
     ): ResponseBody
+
+    @GET("https://api.github.com/repos/Bartixxx32/oparbcheckapp/releases/latest")
+    suspend fun getLatestRelease(): GitHubRelease
 }

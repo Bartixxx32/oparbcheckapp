@@ -166,6 +166,7 @@ fun FusedStatusScreen(
     
     val sheetState = rememberModalBottomSheetState()
     var showHistorySheet by remember { mutableStateOf(false) }
+    var updateAvailable by remember { mutableStateOf<GitHubRelease?>(null) }
     
     val lastCheckTime by settingsRepo.lastCheckTimestampFlow.collectAsState(initial = 0L)
     val firstRun by settingsRepo.firstRunFlow.collectAsState(initial = null)
@@ -213,6 +214,22 @@ fun FusedStatusScreen(
                 val database = api.getDatabase()
                 val deviceData = database[model]
                 currentDeviceData = deviceData
+
+                // Check for app updates on GitHub
+                try {
+                    val latestRelease = api.getLatestRelease()
+                    val currentVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0.0.0"
+                    
+                    // Cleanup versions (remove 'v' and spaces)
+                    val latestClean = latestRelease.tagName.replace("v", "").trim()
+                    val currentClean = currentVersion.replace("v", "").trim()
+                    
+                    if (latestClean != currentClean && isVersionNewer(currentClean, latestClean)) {
+                        updateAvailable = latestRelease
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
 
                 // Determine conversion status for telemetry
                 val hasBarometer = SystemUtils.hasBarometer(context)
@@ -503,9 +520,73 @@ fun FusedStatusScreen(
                     onDismiss = { showHistorySheet = false }
                 )
             }
+
+            if (updateAvailable != null) {
+                UpdateDialog(
+                    release = updateAvailable!!,
+                    onDismiss = { updateAvailable = null }
+                )
+            }
         }
     }
 } 
+
+/**
+ * Compares two semantic version strings.
+ * Returns true if [latest] is newer than [current].
+ */
+private fun isVersionNewer(current: String, latest: String): Boolean {
+    return try {
+        val currentParts = current.split(".").map { it.filter { c -> c.isDigit() }.toInt() }
+        val latestParts = latest.split(".").map { it.filter { c -> c.isDigit() }.toInt() }
+        
+        for (i in 0 until maxOf(currentParts.size, latestParts.size)) {
+            val curr = currentParts.getOrNull(i) ?: 0
+            val lat = latestParts.getOrNull(i) ?: 0
+            if (lat > curr) return true
+            if (lat < curr) return false
+        }
+        false
+    } catch (e: Exception) {
+        latest != current
+    }
+}
+
+@Composable
+fun UpdateDialog(release: GitHubRelease, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.update_available_title)) },
+        text = {
+            Column {
+                Text(stringResource(R.string.update_available_msg, release.tagName))
+                if (!release.body.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = release.body.take(200) + if (release.body.length > 200) "..." else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(release.htmlUrl))
+                context.startActivity(intent)
+                onDismiss()
+            }) {
+                Text(stringResource(R.string.download))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.close))
+            }
+        }
+    )
+}
 
 @Composable
 private fun StatusContent(

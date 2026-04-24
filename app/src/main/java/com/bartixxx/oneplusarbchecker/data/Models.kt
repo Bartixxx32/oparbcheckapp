@@ -17,3 +17,10 @@ data class VersionData(
     @SerializedName("minor") val minor: Int? = null,
     @SerializedName("is_hardcoded") val isHardcoded: Boolean = false
 )
+
+data class GitHubRelease(
+    @SerializedName("tag_name") val tagName: String,
+    @SerializedName("html_url") val htmlUrl: String,
+    @SerializedName("name") val name: String? = null,
+    @SerializedName("body") val body: String? = null
+)
