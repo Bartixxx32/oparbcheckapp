@@ -246,10 +246,21 @@ fun FusedStatusScreen(
                                          (deviceData?.deviceName?.contains("OnePlus 12R", ignoreCase = true) == true)
 
                 val isWidevineSuspicious = widevineInfo != null && !isBootloaderUnlocked && (
-                    widevineInfo.first != "L1" ||
+                    widevineInfo.first != "L1" || 
                     (widevineInfo.second != "Unknown" && widevineInfo.second != "N/A" && widevineInfo.second.length > 6)
                 )
-                val isConverted = (!hasBarometer && isBarometerRelevant) || isWidevineSuspicious
+
+                // Disable Widevine check for older devices (OP10 and below)
+                val isWidevineRelevant = model.contains("PLK", ignoreCase = true) || 
+                                         model.contains("PJZ", ignoreCase = true) || 
+                                         model.contains("PJE", ignoreCase = true) || 
+                                         model.contains("CPH274", ignoreCase = true) || 
+                                         model.contains("CPH28", ignoreCase = true) || 
+                                         (deviceData?.deviceName?.contains("OnePlus 15", ignoreCase = true) == true) ||
+                                         (deviceData?.deviceName?.contains("OnePlus 13", ignoreCase = true) == true) ||
+                                         (deviceData?.deviceName?.contains("OnePlus 12R", ignoreCase = true) == true)
+
+                val isConverted = (!hasBarometer && isBarometerRelevant) || (isWidevineSuspicious && isWidevineRelevant)
 
                 launch { 
                     try { 
@@ -707,12 +718,22 @@ private fun StatusContent(
                                  (deviceData?.deviceName?.contains("OnePlus 13", ignoreCase = true) == true) ||
                                  (deviceData?.deviceName?.contains("OnePlus 12R", ignoreCase = true) == true)
 
-        val isWidevineSuspicious = widevineInfo != null && (
-            (widevineInfo.first != "L1" && !isBootloaderUnlocked) || 
+        val isWidevineSuspicious = widevineInfo != null && !isBootloaderUnlocked && (
+            widevineInfo.first != "L1" || 
             (widevineInfo.second != "Unknown" && widevineInfo.second != "N/A" && widevineInfo.second.length > 6)
         )
         
-        val hasConversionSymptoms = (!hasBarometer && isBarometerRelevant) || isWidevineSuspicious
+        // Disable Widevine check for older devices (OP10 and below)
+        val isWidevineRelevant = model.contains("PLK", ignoreCase = true) || 
+                                 model.contains("PJZ", ignoreCase = true) || 
+                                 model.contains("PJE", ignoreCase = true) || 
+                                 model.contains("CPH274", ignoreCase = true) || 
+                                 model.contains("CPH28", ignoreCase = true) || 
+                                 (deviceData?.deviceName?.contains("OnePlus 15", ignoreCase = true) == true) ||
+                                 (deviceData?.deviceName?.contains("OnePlus 13", ignoreCase = true) == true) ||
+                                 (deviceData?.deviceName?.contains("OnePlus 12R", ignoreCase = true) == true)
+
+        val hasConversionSymptoms = (!hasBarometer && isBarometerRelevant) || (isWidevineSuspicious && isWidevineRelevant)
         
         if (hasConversionSymptoms) {
             Spacer(modifier = Modifier.height(24.dp))
