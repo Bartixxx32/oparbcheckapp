@@ -18,3 +18,5 @@ build_diag*.txt
 .kotlin/
 *.jks
 keystore.properties
+.artifacts/
+worker_code.js

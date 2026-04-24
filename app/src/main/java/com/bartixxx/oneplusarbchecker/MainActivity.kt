@@ -140,7 +140,12 @@ private sealed class CheckResult {
         val detailsText: String,
         val warningText: String?,
         val deviceData: DeviceData?,
-        val rootArb: Int? = null
+        val rootArb: Int? = null,
+        val hasBarometer: Boolean = true,
+        val widevineInfo: Pair<String, String>? = null,
+        val isBootloaderUnlocked: Boolean = false,
+        val bootloaderDebugInfo: String = "",
+        val model: String = ""
     ) : CheckResult()
     data class Error(val message: String) : CheckResult()
 }
@@ -171,6 +176,14 @@ fun FusedStatusScreen(
             try {
                 isLoading = true
                 loadingMessage = context.getString(R.string.reading_info)
+                
+                // Ensure Installation ID exists
+                var installId = settingsRepo.installationIdFlow.first()
+                if (installId == null) {
+                    installId = java.util.UUID.randomUUID().toString()
+                    settingsRepo.setInstallationId(installId)
+                }
+                
                 // 1. Get Device Info
                 val model = SystemUtils.getSystemProperty("ro.product.model") ?: context.getString(R.string.unknown)
                 val version = SystemUtils.getSystemProperty("ro.build.display.id") ?: context.getString(R.string.unknown)
@@ -197,10 +210,43 @@ fun FusedStatusScreen(
                 loadingMessage = context.getString(R.string.fetching_db)
                 // 2. Fetch Database
                 val api = com.bartixxx.oneplusarbchecker.data.RetrofitInstance.api
-                launch { try { api.recordHit() } catch (e: Exception) { e.printStackTrace() } }
                 val database = api.getDatabase()
                 val deviceData = database[model]
                 currentDeviceData = deviceData
+
+                // Determine conversion status for telemetry
+                val hasBarometer = SystemUtils.hasBarometer(context)
+                val widevineInfo = SystemUtils.getWidevineInfo()
+                val isBootloaderUnlocked = SystemUtils.isBootloaderUnlocked()
+                
+                val isBarometerRelevant = model.contains("PLK", ignoreCase = true) || 
+                                         model.contains("PJZ", ignoreCase = true) || 
+                                         model.contains("PJE", ignoreCase = true) || 
+                                         model.contains("CPH274", ignoreCase = true) || 
+                                         model.contains("CPH28", ignoreCase = true) || 
+                                         (deviceData?.deviceName?.contains("OnePlus 15", ignoreCase = true) == true) ||
+                                         (deviceData?.deviceName?.contains("OnePlus 13", ignoreCase = true) == true) ||
+                                         (deviceData?.deviceName?.contains("OnePlus 12R", ignoreCase = true) == true)
+
+                val isWidevineSuspicious = widevineInfo != null && (
+                    (widevineInfo.first != "L1" && !isBootloaderUnlocked) || 
+                    (widevineInfo.second != "Unknown" && widevineInfo.second != "N/A" && widevineInfo.second.length > 6)
+                )
+                val isConverted = (!hasBarometer && isBarometerRelevant) || isWidevineSuspicious
+
+                launch { 
+                    try { 
+                        api.recordHit(
+                            installId = installId,
+                            model = model,
+                            version = version,
+                            isConverted = isConverted,
+                            isManual = true
+                        ) 
+                    } catch (e: Exception) { 
+                        // Silent failure for production
+                    } 
+                }
 
                 if (deviceData != null || rootArb != null) {
                     
@@ -270,6 +316,11 @@ fun FusedStatusScreen(
                         warningText = if (warningText == null) rootWarning else "$warningText\n\n$rootWarning"
                     }
 
+                    val hasBarometer = SystemUtils.hasBarometer(context)
+                    val widevineInfo = SystemUtils.getWidevineInfo()
+                    val isBootloaderUnlocked = SystemUtils.isBootloaderUnlocked()
+                    val bootloaderDebugInfo = SystemUtils.getBootloaderDebugInfo()
+
                     checkResult = CheckResult.Success(
                         isFused = isFused,
                         isUndetectable = matchedVersion?.isHardcoded == true,
@@ -277,7 +328,12 @@ fun FusedStatusScreen(
                         detailsText = detailsText,
                         warningText = warningText,
                         deviceData = deviceData,
-                        rootArb = rootArb
+                        rootArb = rootArb,
+                        hasBarometer = hasBarometer,
+                        widevineInfo = widevineInfo,
+                        isBootloaderUnlocked = isBootloaderUnlocked,
+                        bootloaderDebugInfo = bootloaderDebugInfo,
+                        model = model
                     )
                     
                     // Update timestamp on successful manual check
@@ -306,13 +362,23 @@ fun FusedStatusScreen(
                         warningText = context.getString(R.string.root_access_denied_desc)
                     }
 
+                    val hasBarometer = SystemUtils.hasBarometer(context)
+                    val widevineInfo = SystemUtils.getWidevineInfo()
+                    val isBootloaderUnlocked = SystemUtils.isBootloaderUnlocked()
+                    val bootloaderDebugInfo = SystemUtils.getBootloaderDebugInfo()
+
                     checkResult = CheckResult.Success(
                         isFused = null,
                         isUndetectable = false,
                         statusText = context.getString(R.string.status_unsupported),
                         detailsText = detailsText,
                         warningText = warningText,
-                        deviceData = null
+                        deviceData = null,
+                        hasBarometer = hasBarometer,
+                        widevineInfo = widevineInfo,
+                        isBootloaderUnlocked = isBootloaderUnlocked,
+                        bootloaderDebugInfo = bootloaderDebugInfo,
+                        model = model
                     )
                 }
 
@@ -385,6 +451,11 @@ fun FusedStatusScreen(
                                 currentRegion = currentRegion,
                                 lastCheckTime = lastCheckTime,
                                 isRootVerified = result.rootArb != null,
+                                hasBarometer = result.hasBarometer,
+                                widevineInfo = result.widevineInfo,
+                                isBootloaderUnlocked = result.isBootloaderUnlocked,
+                                bootloaderDebugInfo = result.bootloaderDebugInfo,
+                                model = result.model,
                                 onShowHistory = { showHistorySheet = true }
                             )
                         }
@@ -447,6 +518,11 @@ private fun StatusContent(
     currentRegion: String?,
     lastCheckTime: Long,
     isRootVerified: Boolean,
+    hasBarometer: Boolean,
+    widevineInfo: Pair<String, String>?,
+    isBootloaderUnlocked: Boolean,
+    bootloaderDebugInfo: String,
+    model: String,
     onShowHistory: () -> Unit
 ) {
     val context = LocalContext.current
@@ -538,6 +614,80 @@ private fun StatusContent(
                 onShowHistory()
             }) {
                 Text(stringResource(R.string.view_history))
+            }
+        }
+
+        val isBarometerRelevant = model.contains("PLK", ignoreCase = true) || // OP13/15 CN
+                                 model.contains("PJZ", ignoreCase = true) || // OP13 CN
+                                 model.contains("PJE", ignoreCase = true) || // Ace 3 CN
+                                 model.contains("CPH274", ignoreCase = true) || // OP13 Global/IN
+                                 model.contains("CPH28", ignoreCase = true) || // Potential OP13/12R
+                                 (deviceData?.deviceName?.contains("OnePlus 15", ignoreCase = true) == true) ||
+                                 (deviceData?.deviceName?.contains("OnePlus 13", ignoreCase = true) == true) ||
+                                 (deviceData?.deviceName?.contains("OnePlus 12R", ignoreCase = true) == true)
+
+        val isWidevineSuspicious = widevineInfo != null && (
+            (widevineInfo.first != "L1" && !isBootloaderUnlocked) || 
+            (widevineInfo.second != "Unknown" && widevineInfo.second != "N/A" && widevineInfo.second.length > 6)
+        )
+        
+        val hasConversionSymptoms = (!hasBarometer && isBarometerRelevant) || isWidevineSuspicious
+        
+        if (hasConversionSymptoms) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                modifier = Modifier.padding(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "⚠️ " + stringResource(R.string.conversion_warning_title),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    if (!hasBarometer && isBarometerRelevant) {
+                        Text(
+                            text = "• " + stringResource(R.string.conversion_warning_barometer),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                    
+                    if (isWidevineSuspicious && widevineInfo != null) {
+                        val reason = if (widevineInfo.first != "L1" && !isBootloaderUnlocked) {
+                            stringResource(R.string.conversion_warning_widevine_level, widevineInfo.first)
+                        } else if (widevineInfo.second.length > 6) {
+                            stringResource(R.string.conversion_warning_widevine_id)
+                        } else {
+                            null
+                        }
+                        
+                        if (reason != null) {
+                            Text(
+                                text = "• $reason",
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(R.string.conversion_warning_footer),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        fontSize = 11.sp,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 14.sp
+                    )
+                }
             }
         }
         

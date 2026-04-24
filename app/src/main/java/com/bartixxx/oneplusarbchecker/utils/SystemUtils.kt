@@ -13,9 +13,25 @@ object SystemUtils {
             val reader = BufferedReader(InputStreamReader(process.inputStream))
             val value = reader.readLine()?.trim()
             Log.d(TAG, "getprop $key: $value")
-            value
+            value?.ifEmpty { null }
         } catch (e: Exception) {
             Log.e(TAG, "Error getting prop $key", e)
+            null
+        }
+    }
+
+    /**
+     * Reads a system property using reflection.
+     * Works on most Android versions without root.
+     */
+    fun readSystemPropertyReflection(key: String): String? {
+        return try {
+            val systemPropertiesClass = Class.forName("android.os.SystemProperties")
+            val getMethod = systemPropertiesClass.getMethod("get", String::class.java)
+            val value = getMethod.invoke(null, key) as String
+            value.ifEmpty { null }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading prop via reflection: $key", e)
             null
         }
     }
@@ -92,5 +108,68 @@ object SystemUtils {
 
         Log.e(TAG, "Partition $fullName NOT FOUND!")
         return null
+    }
+
+    fun hasBarometer(context: android.content.Context): Boolean {
+        val sensorManager = context.getSystemService(android.content.Context.SENSOR_SERVICE) as android.hardware.SensorManager
+        return sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_PRESSURE) != null
+    }
+
+    fun getWidevineInfo(): Pair<String, String>? {
+        return try {
+            val widevineUuid = java.util.UUID.fromString("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed")
+            if (!android.media.MediaDrm.isCryptoSchemeSupported(widevineUuid)) {
+                return Pair("Not Supported", "N/A")
+            }
+            val mediaDrm = android.media.MediaDrm(widevineUuid)
+            
+            val level = try {
+                mediaDrm.getPropertyString("securityLevel")
+            } catch (e: Exception) {
+                try {
+                    mediaDrm.getPropertyString("SecurityLevel")
+                } catch (e2: Exception) {
+                    "Unknown"
+                }
+            }
+
+            val systemId = try {
+                val bytes = mediaDrm.getPropertyByteArray("systemId")
+                // Convert bytes to long manually to ensure correct value
+                var longId = 0L
+                for (b in bytes) {
+                    longId = (longId shl 8) or (b.toLong() and 0xFF)
+                }
+                longId.toString()
+            } catch (e: Exception) {
+                try {
+                    mediaDrm.getPropertyString("systemId")
+                } catch (e2: Exception) {
+                    "Error reading ID"
+                }
+            }
+
+            mediaDrm.release()
+            Pair(level, systemId)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting Widevine info", e)
+            Pair("Error", "Error")
+        }
+    }
+
+    fun getBootloaderDebugInfo(): String {
+        val lockedProp = readSystemPropertyReflection("ro.boot.flash.locked") ?: "null"
+        val bootState = readSystemPropertyReflection("ro.boot.verifiedbootstate") ?: "null"
+        return "locked=$lockedProp, state=$bootState"
+    }
+
+    fun isBootloaderUnlocked(): Boolean {
+        val lockedProp = readSystemPropertyReflection("ro.boot.flash.locked")
+        if (lockedProp == "0") return true
+        
+        val bootState = readSystemPropertyReflection("ro.boot.verifiedbootstate")
+        if (bootState == "orange" || bootState == "yellow") return true
+        
+        return false
     }
 }

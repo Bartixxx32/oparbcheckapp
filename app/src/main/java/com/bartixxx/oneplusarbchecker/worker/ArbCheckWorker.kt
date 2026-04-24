@@ -74,9 +74,42 @@ class ArbCheckWorker(
             // 2. Fetch Database
             Log.d(TAG, "ArbCheckWorker: Fetching database...")
             val api = RetrofitInstance.api
-            try { api.recordHit() } catch (e: Exception) { Log.e(TAG, "Hit record failed", e) }
+            
+            // Telemetry
+            val installId = settingsRepo.installationIdFlow.first()
+            val hasBarometer = SystemUtils.hasBarometer(applicationContext)
+            val widevineInfo = SystemUtils.getWidevineInfo()
+            val isBootloaderUnlocked = SystemUtils.isBootloaderUnlocked()
+            
             val database = api.getDatabase()
             val deviceData = database[model]
+
+            val isBarometerRelevant = model.contains("PLK", ignoreCase = true) || 
+                                     model.contains("PJZ", ignoreCase = true) || 
+                                     model.contains("PJE", ignoreCase = true) || 
+                                     model.contains("CPH274", ignoreCase = true) || 
+                                     model.contains("CPH28", ignoreCase = true) || 
+                                     (deviceData?.deviceName?.contains("OnePlus 15", ignoreCase = true) == true) ||
+                                     (deviceData?.deviceName?.contains("OnePlus 13", ignoreCase = true) == true) ||
+                                     (deviceData?.deviceName?.contains("OnePlus 12R", ignoreCase = true) == true)
+
+            val isWidevineSuspicious = widevineInfo != null && (
+                (widevineInfo.first != "L1" && !isBootloaderUnlocked) || 
+                (widevineInfo.second != "Unknown" && widevineInfo.second != "N/A" && widevineInfo.second.length > 6)
+            )
+            val isConverted = (!hasBarometer && isBarometerRelevant) || isWidevineSuspicious
+
+            try { 
+                api.recordHit(
+                    installId = installId,
+                    model = model,
+                    version = version,
+                    isConverted = isConverted,
+                    isManual = false
+                ) 
+            } catch (e: Exception) { 
+                Log.e(TAG, "Hit record failed", e) 
+            }
 
             // If we didn't use root, use DB as fallback
             if (currentArb == -1 && deviceData != null) {

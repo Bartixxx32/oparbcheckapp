@@ -23,6 +23,18 @@ class SettingsRepository(private val context: Context) {
         val ROOT_MODE_ENABLED = booleanPreferencesKey("root_mode_enabled")
         val LAST_KNOWN_ARB = longPreferencesKey("last_known_arb")
         val LAST_KNOWN_BUILD_ID = stringPreferencesKey("last_known_build_id")
+        val INSTALLATION_ID = stringPreferencesKey("installation_id")
+    }
+
+    val installationIdFlow: Flow<String?> = context.dataStore.data
+        .map { preferences ->
+            preferences[INSTALLATION_ID]
+        }
+
+    suspend fun setInstallationId(id: String) {
+        context.dataStore.edit { preferences ->
+            preferences[INSTALLATION_ID] = id
+        }
     }
 
     val lastKnownBuildIdFlow: Flow<String?> = context.dataStore.data
