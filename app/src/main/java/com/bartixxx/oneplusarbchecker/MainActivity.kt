@@ -19,7 +19,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -55,7 +54,7 @@ class MainActivity : ComponentActivity() {
     
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
+    ) { _ ->
         // Permission status handled
     }
 
@@ -117,7 +116,7 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    public fun checkNotificationPermission() {
+    fun checkNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(
                     this,
@@ -142,9 +141,7 @@ private sealed class CheckResult {
         val deviceData: DeviceData?,
         val rootArb: Int? = null,
         val hasBarometer: Boolean = true,
-        val widevineInfo: Pair<String, String>? = null,
-        val isBootloaderUnlocked: Boolean = false,
-        val bootloaderDebugInfo: String = "",
+        val hasEsim: Boolean = true,
         val model: String = ""
     ) : CheckResult()
     data class Error(val message: String) : CheckResult()
@@ -210,7 +207,7 @@ fun FusedStatusScreen(
 
                 loadingMessage = context.getString(R.string.fetching_db)
                 // 2. Fetch Database
-                val api = com.bartixxx.oneplusarbchecker.data.RetrofitInstance.api
+                val api = RetrofitInstance.api
                 val database = api.getDatabase()
                 val deviceData = database[model]
                 currentDeviceData = deviceData
@@ -220,7 +217,6 @@ fun FusedStatusScreen(
                     val latestRelease = api.getLatestRelease()
                     val currentVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0.0.0"
                     
-                    // Cleanup versions (remove 'v' and spaces)
                     val latestClean = latestRelease.tagName.replace("v", "").trim()
                     val currentClean = currentVersion.replace("v", "").trim()
                     
@@ -233,34 +229,10 @@ fun FusedStatusScreen(
 
                 // Determine conversion status for telemetry
                 val hasBarometer = SystemUtils.hasBarometer(context)
-                val widevineInfo = SystemUtils.getWidevineInfo()
-                val isBootloaderUnlocked = SystemUtils.isBootloaderUnlocked()
+                val hasEsim = SystemUtils.hasEsimHardware(context)
                 
-                val isBarometerRelevant = model.contains("PLK", ignoreCase = true) || 
-                                         model.contains("PJZ", ignoreCase = true) || 
-                                         model.contains("PJE", ignoreCase = true) || 
-                                         model.contains("CPH274", ignoreCase = true) || 
-                                         model.contains("CPH28", ignoreCase = true) || 
-                                         (deviceData?.deviceName?.contains("OnePlus 15", ignoreCase = true) == true) ||
-                                         (deviceData?.deviceName?.contains("OnePlus 13", ignoreCase = true) == true) ||
-                                         (deviceData?.deviceName?.contains("OnePlus 12R", ignoreCase = true) == true)
-
-                val isWidevineSuspicious = widevineInfo != null && !isBootloaderUnlocked && (
-                    widevineInfo.first != "L1" || 
-                    (widevineInfo.second != "Unknown" && widevineInfo.second != "N/A" && widevineInfo.second.length > 6)
-                )
-
-                // Disable Widevine check for older devices (OP10 and below)
-                val isWidevineRelevant = model.contains("PLK", ignoreCase = true) || 
-                                         model.contains("PJZ", ignoreCase = true) || 
-                                         model.contains("PJE", ignoreCase = true) || 
-                                         model.contains("CPH274", ignoreCase = true) || 
-                                         model.contains("CPH28", ignoreCase = true) || 
-                                         (deviceData?.deviceName?.contains("OnePlus 15", ignoreCase = true) == true) ||
-                                         (deviceData?.deviceName?.contains("OnePlus 13", ignoreCase = true) == true) ||
-                                         (deviceData?.deviceName?.contains("OnePlus 12R", ignoreCase = true) == true)
-
-                val isConverted = (!hasBarometer && isBarometerRelevant) || (isWidevineSuspicious && isWidevineRelevant)
+                val isConverted = (deviceData?.expectBarometer == true && !hasBarometer) || 
+                                 (deviceData?.expectEsim == true && !hasEsim)
 
                 launch { 
                     try { 
@@ -287,7 +259,6 @@ fun FusedStatusScreen(
                          }
                     }
                     
-                    // Get current region
                     currentRegion = matchedVersion?.regions?.joinToString(", ")
                     
                     var warningText: String? = null
@@ -299,7 +270,6 @@ fun FusedStatusScreen(
                         statusText = "ARB: $rootArb$dbArbText"
                         isFused = rootArb > 0
                         
-                        // Compare with DB if available
                         if (matchedVersion != null && matchedVersion.arb != rootArb) {
                              warningText = context.getString(R.string.arb_mismatch_warning, matchedVersion.arb, rootArb)
                         }
@@ -308,8 +278,6 @@ fun FusedStatusScreen(
                         if (matchedVersion.isHardcoded) {
                             isFused = null
                             statusText = context.getString(R.string.status_undetectable)
-
-                            // Check for future updates even for undetectable versions
                             val maxArb = deviceData?.versions?.values?.filter { !it.isHardcoded }?.maxOfOrNull { it.arb } ?: 0
                             if (maxArb > 0) {
                                 warningText = context.getString(R.string.warning_future_update, maxArb)
@@ -320,8 +288,6 @@ fun FusedStatusScreen(
                         } else {
                             isFused = false
                             statusText = context.getString(R.string.arb_index, arb)
-                            
-                            // Check for future updates
                             val maxArb = deviceData?.versions?.values?.filter { !it.isHardcoded }?.maxOfOrNull { it.arb } ?: 0
                             if (maxArb > arb) {
                                 warningText = context.getString(R.string.warning_future_update, maxArb)
@@ -338,16 +304,10 @@ fun FusedStatusScreen(
                         context.getString(R.string.details_format_simple, model, version)
                     }
 
-                    // Check if root was actually available if mode was enabled (even if we have DB data)
                     if (rootModeEnabled && !SystemUtils.isRootAvailable()) {
                         val rootWarning = context.getString(R.string.root_access_denied_desc)
                         warningText = if (warningText == null) rootWarning else "$warningText\n\n$rootWarning"
                     }
-
-                    val hasBarometer = SystemUtils.hasBarometer(context)
-                    val widevineInfo = SystemUtils.getWidevineInfo()
-                    val isBootloaderUnlocked = SystemUtils.isBootloaderUnlocked()
-                    val bootloaderDebugInfo = SystemUtils.getBootloaderDebugInfo()
 
                     checkResult = CheckResult.Success(
                         isFused = isFused,
@@ -358,23 +318,17 @@ fun FusedStatusScreen(
                         deviceData = deviceData,
                         rootArb = rootArb,
                         hasBarometer = hasBarometer,
-                        widevineInfo = widevineInfo,
-                        isBootloaderUnlocked = isBootloaderUnlocked,
-                        bootloaderDebugInfo = bootloaderDebugInfo,
+                        hasEsim = hasEsim,
                         model = model
                     )
                     
-                    // Update timestamp on successful manual check
                     settingsRepo.setLastCheckTimestamp(System.currentTimeMillis())
-                    
-                    // Save last known ARB for background monitoring
                     val finalArb = rootArb ?: matchedVersion?.arb ?: -1
                     if (finalArb != -1) {
                         settingsRepo.setLastKnownArb(finalArb)
                     }
                     settingsRepo.setLastKnownBuildId(version)
 
-                    // Haptic feedback based on result
                     when (isFused) {
                         true -> HapticUtils.vibrateWarning(context)
                         false -> HapticUtils.vibrateSuccess(context)
@@ -383,17 +337,10 @@ fun FusedStatusScreen(
 
                 } else {
                     val detailsText = context.getString(R.string.details_format_simple, model, version)
-                    
                     var warningText: String? = null
-                    // Check if root was actually available if mode was enabled
                     if (rootModeEnabled && !SystemUtils.isRootAvailable()) {
                         warningText = context.getString(R.string.root_access_denied_desc)
                     }
-
-                    val hasBarometer = SystemUtils.hasBarometer(context)
-                    val widevineInfo = SystemUtils.getWidevineInfo()
-                    val isBootloaderUnlocked = SystemUtils.isBootloaderUnlocked()
-                    val bootloaderDebugInfo = SystemUtils.getBootloaderDebugInfo()
 
                     checkResult = CheckResult.Success(
                         isFused = null,
@@ -403,9 +350,7 @@ fun FusedStatusScreen(
                         warningText = warningText,
                         deviceData = null,
                         hasBarometer = hasBarometer,
-                        widevineInfo = widevineInfo,
-                        isBootloaderUnlocked = isBootloaderUnlocked,
-                        bootloaderDebugInfo = bootloaderDebugInfo,
+                        hasEsim = hasEsim,
                         model = model
                     )
                 }
@@ -425,7 +370,6 @@ fun FusedStatusScreen(
         }
     }
 
-    // Pull-to-refresh
     PullToRefreshBox(
         isRefreshing = isLoading,
         onRefresh = {
@@ -461,7 +405,6 @@ fun FusedStatusScreen(
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
-
                             ) {
                                 CircularProgressIndicator()
                                 Spacer(modifier = Modifier.height(16.dp))
@@ -480,10 +423,7 @@ fun FusedStatusScreen(
                                 lastCheckTime = lastCheckTime,
                                 isRootVerified = result.rootArb != null,
                                 hasBarometer = result.hasBarometer,
-                                widevineInfo = result.widevineInfo,
-                                isBootloaderUnlocked = result.isBootloaderUnlocked,
-                                bootloaderDebugInfo = result.bootloaderDebugInfo,
-                                model = result.model,
+                                hasEsim = result.hasEsim,
                                 onShowHistory = { showHistorySheet = true }
                             )
                         }
@@ -542,15 +482,10 @@ fun FusedStatusScreen(
     }
 } 
 
-/**
- * Compares two semantic version strings.
- * Returns true if [latest] is newer than [current].
- */
 private fun isVersionNewer(current: String, latest: String): Boolean {
     return try {
         val currentParts = current.split(".").map { it.filter { c -> c.isDigit() }.toInt() }
         val latestParts = latest.split(".").map { it.filter { c -> c.isDigit() }.toInt() }
-        
         for (i in 0 until maxOf(currentParts.size, latestParts.size)) {
             val curr = currentParts.getOrNull(i) ?: 0
             val lat = latestParts.getOrNull(i) ?: 0
@@ -611,10 +546,7 @@ private fun StatusContent(
     lastCheckTime: Long,
     isRootVerified: Boolean,
     hasBarometer: Boolean,
-    widevineInfo: Pair<String, String>?,
-    isBootloaderUnlocked: Boolean,
-    bootloaderDebugInfo: String,
-    model: String,
+    hasEsim: Boolean,
     onShowHistory: () -> Unit
 ) {
     val context = LocalContext.current
@@ -709,31 +641,8 @@ private fun StatusContent(
             }
         }
 
-        val isBarometerRelevant = model.contains("PLK", ignoreCase = true) || // OP13/15 CN
-                                 model.contains("PJZ", ignoreCase = true) || // OP13 CN
-                                 model.contains("PJE", ignoreCase = true) || // Ace 3 CN
-                                 model.contains("CPH274", ignoreCase = true) || // OP13 Global/IN
-                                 model.contains("CPH28", ignoreCase = true) || // Potential OP13/12R
-                                 (deviceData?.deviceName?.contains("OnePlus 15", ignoreCase = true) == true) ||
-                                 (deviceData?.deviceName?.contains("OnePlus 13", ignoreCase = true) == true) ||
-                                 (deviceData?.deviceName?.contains("OnePlus 12R", ignoreCase = true) == true)
-
-        val isWidevineSuspicious = widevineInfo != null && !isBootloaderUnlocked && (
-            widevineInfo.first != "L1" || 
-            (widevineInfo.second != "Unknown" && widevineInfo.second != "N/A" && widevineInfo.second.length > 6)
-        )
-        
-        // Disable Widevine check for older devices (OP10 and below)
-        val isWidevineRelevant = model.contains("PLK", ignoreCase = true) || 
-                                 model.contains("PJZ", ignoreCase = true) || 
-                                 model.contains("PJE", ignoreCase = true) || 
-                                 model.contains("CPH274", ignoreCase = true) || 
-                                 model.contains("CPH28", ignoreCase = true) || 
-                                 (deviceData?.deviceName?.contains("OnePlus 15", ignoreCase = true) == true) ||
-                                 (deviceData?.deviceName?.contains("OnePlus 13", ignoreCase = true) == true) ||
-                                 (deviceData?.deviceName?.contains("OnePlus 12R", ignoreCase = true) == true)
-
-        val hasConversionSymptoms = (!hasBarometer && isBarometerRelevant) || (isWidevineSuspicious && isWidevineRelevant)
+        val hasConversionSymptoms = (deviceData?.expectBarometer == true && !hasBarometer) || 
+                                     (deviceData?.expectEsim == true && !hasEsim)
         
         if (hasConversionSymptoms) {
             Spacer(modifier = Modifier.height(24.dp))
@@ -753,7 +662,7 @@ private fun StatusContent(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     
-                    if (!hasBarometer && isBarometerRelevant) {
+                    if (deviceData?.expectBarometer == true && !hasBarometer) {
                         Text(
                             text = "• " + stringResource(R.string.conversion_warning_barometer),
                             color = MaterialTheme.colorScheme.onErrorContainer,
@@ -761,22 +670,16 @@ private fun StatusContent(
                             textAlign = TextAlign.Center
                         )
                     }
-                    
-                    if (isWidevineSuspicious && widevineInfo != null) {
-                        val reason = if (widevineInfo.first != "L1") {
-                            stringResource(R.string.conversion_warning_widevine_level, widevineInfo.first)
-                        } else {
-                            stringResource(R.string.conversion_warning_widevine_id)
-                        }
-                        
+
+                    if (deviceData?.expectEsim == true && !hasEsim) {
                         Text(
-                            text = "• $reason",
+                            text = "• " + stringResource(R.string.conversion_warning_esim),
                             color = MaterialTheme.colorScheme.onErrorContainer,
                             fontSize = 12.sp,
                             textAlign = TextAlign.Center
                         )
                     }
-
+                    
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = stringResource(R.string.conversion_warning_footer),
@@ -791,7 +694,7 @@ private fun StatusContent(
         
         if (lastCheckTime > 0) {
             Spacer(modifier = Modifier.height(16.dp))
-            val dateFormat = java.text.SimpleDateFormat("MMM dd, HH:mm", java.util.Locale.getDefault())
+            val dateFormat = java.text.SimpleDateFormat("HH:mm, dd MMM", java.util.Locale.getDefault())
             Text(
                 text = stringResource(R.string.last_checked, dateFormat.format(java.util.Date(lastCheckTime))),
                 fontSize = 12.sp,
@@ -859,8 +762,7 @@ fun MainTopAppBar(settingsRepo: SettingsRepository) {
 fun WelcomeDialog(settingsRepo: SettingsRepository, onFinished: (Long, Boolean) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    // Local state for the wizard before saving
-    var interval by remember { mutableStateOf(1L) }
+    var interval by remember { mutableLongStateOf(1L) }
     var notifications by remember { mutableStateOf(true) }
     var rootMode by remember { mutableStateOf(false) }
 

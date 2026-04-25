@@ -115,6 +115,17 @@ object SystemUtils {
         return sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_PRESSURE) != null
     }
 
+    /**
+     * Checks if the device has physical eSIM hardware (eUICC).
+     * Highly reliable for distinguishing Chinese OnePlus hardware (no eSIM) 
+     * from Global hardware (has eSIM) in models from 2022 onwards.
+     */
+    fun hasEsimHardware(context: android.content.Context): Boolean {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.P) return false
+        val euiccManager = context.getSystemService(android.content.Context.EUICC_SERVICE) as? android.telephony.euicc.EuiccManager
+        return euiccManager?.isEnabled == true
+    }
+
     fun getWidevineInfo(): Pair<String, String>? {
         return try {
             val widevineUuid = java.util.UUID.fromString("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed")

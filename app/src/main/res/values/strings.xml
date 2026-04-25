@@ -70,6 +70,7 @@
     <string name="root_access_denied_desc">Root mode is enabled but we couldn\'t get su permissions.</string>
     <string name="conversion_warning_title">Likely Region Conversion Detected</string>
     <string name="conversion_warning_barometer">Barometer sensor is missing.</string>
+    <string name="conversion_warning_esim">eSIM hardware (eUICC) is missing.</string>
     <string name="conversion_warning_widevine_level">Widevine level is %1$s (L1 required)</string>
     <string name="conversion_warning_widevine_id">Widevine System ID is too long</string>
     <string name="conversion_warning_footer">Chinese models often have hardware differences that cause these symptoms when running Global software.</string>

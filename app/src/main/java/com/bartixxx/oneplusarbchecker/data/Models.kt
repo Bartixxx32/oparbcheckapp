@@ -4,6 +4,8 @@ import com.google.gson.annotations.SerializedName
 
 data class DeviceData(
     @SerializedName("device_name") val deviceName: String,
+    @SerializedName("expect_esim") val expectEsim: Boolean = false,
+    @SerializedName("expect_barometer") val expectBarometer: Boolean = false,
     @SerializedName("versions") val versions: Map<String, VersionData>
 )
 

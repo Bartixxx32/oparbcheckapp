@@ -71,6 +71,7 @@
     <string name="root_access_denied_desc">Tryb Root jest włączony, ale nie udało się uzyskać uprawnień su.</string>
     <string name="conversion_warning_title">Prawdopodobna konwersja regionu</string>
     <string name="conversion_warning_barometer">Brak czujnika barometru.</string>
+    <string name="conversion_warning_esim">Brak modułu eSIM (eUICC).</string>
     <string name="conversion_warning_widevine_level">Poziom Widevine to %1$s (wymagany L1)</string>
     <string name="conversion_warning_widevine_id">Identyfikator Widevine System ID jest za długi</string>
     <string name="conversion_warning_footer">Modele chińskie często posiadają różnice sprzętowe, które powodują te objawy podczas korzystania z globalnego oprogramowania.</string>
