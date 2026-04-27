@@ -77,4 +77,15 @@
     <string name="update_available_title">Update Available</string>
     <string name="update_available_msg">A new version of OnePlus ARB Checker (%1$s) is available on GitHub.</string>
     <string name="download">Download</string>
+
+    <string name="telemetry_title">Anonymous Telemetry</string>
+    <string name="telemetry_subtitle">Help us improve the ARB database</string>
+    <string name="telemetry_dialog_title">Disable Telemetry?</string>
+    <string name="telemetry_dialog_msg">Anonymous statistics help us detect ARB changes faster for everyone in the community. Data is non-identifiable and not shared publicly.\n\nIn the future, this data will help us detect and warn about potential update issues specifically for region-converted devices before they happen.\n\nAre you sure you want to disable it?</string>
+    <string name="telemetry_wait">Wait %1$d s</string>
+    <string name="disable">Disable</string>
+    <string name="keep_enabled">Keep Enabled</string>
+
+    <string name="app_updates_title">Check for App Updates</string>
+    <string name="app_updates_subtitle">Stay up-to-date with latest improvements and database fixes</string>
 </resources>

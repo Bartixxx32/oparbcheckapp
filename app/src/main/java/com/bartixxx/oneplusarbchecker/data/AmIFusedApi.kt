@@ -13,6 +13,7 @@ interface AmIFusedApi {
         @Query("install_id") installId: String? = null,
         @Query("model") model: String? = null,
         @Query("version") version: String? = null,
+        @Query("variant") variant: String? = null,
         @Query("is_converted") isConverted: Boolean? = null,
         @Query("is_manual") isManual: Boolean = false
     ): ResponseBody

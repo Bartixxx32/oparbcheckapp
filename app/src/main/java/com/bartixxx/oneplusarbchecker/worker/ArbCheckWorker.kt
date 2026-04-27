@@ -35,9 +35,10 @@ class ArbCheckWorker(
             val rootModeEnabled = settingsRepo.rootModeEnabledFlow.first()
             val lastKnownArb = settingsRepo.lastKnownArbFlow.first()
             val lastKnownBuildId = settingsRepo.lastKnownBuildIdFlow.first()
+            val appUpdatesEnabled = settingsRepo.appUpdatesEnabledFlow.first()
             
             // Check for App Update first (GitHub)
-            if (!appUpdateNotifiedThisBoot) {
+            if (appUpdatesEnabled && !appUpdateNotifiedThisBoot) {
                 try {
                     val api = RetrofitInstance.api
                     val latestRelease = api.getLatestRelease()
@@ -119,22 +120,12 @@ class ArbCheckWorker(
             )
             val isConverted = (!hasBarometer && isBarometerRelevant) || isWidevineSuspicious
 
-            try { 
-                api.recordHit(
-                    installId = installId,
-                    model = model,
-                    version = version,
-                    isConverted = isConverted,
-                    isManual = false
-                ) 
-            } catch (e: Exception) { 
-                Log.e(TAG, "Hit record failed", e) 
-            }
+            val telemetryEnabled = settingsRepo.telemetryEnabledFlow.first()
 
             // If we didn't use root, use DB as fallback
-            if (currentArb == -1 && deviceData != null) {
-                Log.d(TAG, "ArbCheckWorker: Root failed or not used, checking DB for $version")
-                var matchedVersion = deviceData.versions[version]
+            var matchedVersion: VersionData? = null
+            if (deviceData != null) {
+                matchedVersion = deviceData.versions[version]
                 if (matchedVersion == null) {
                     val key = deviceData.versions.keys.find { it.contains(version, ignoreCase = true) || version.contains(it, ignoreCase = true) }
                     if (key != null) {
@@ -142,7 +133,28 @@ class ArbCheckWorker(
                         Log.d(TAG, "ArbCheckWorker: Partial match found: $key")
                     }
                 }
-                currentArb = matchedVersion?.arb ?: -1
+            }
+            
+            val variant = matchedVersion?.regions?.joinToString("/") ?: "Unknown"
+
+            if (telemetryEnabled) {
+                try {
+                    api.recordHit(
+                        installId = installId,
+                        model = model,
+                        version = version,
+                        variant = variant,
+                        isConverted = isConverted,
+                        isManual = false
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Hit record failed", e)
+                }
+            }
+
+            if (currentArb == -1 && matchedVersion != null) {
+                Log.d(TAG, "ArbCheckWorker: Root failed or not used, using DB value for $version")
+                currentArb = matchedVersion.arb
             }
 
             Log.d(TAG, "ArbCheckWorker: Final ARB calculation: Current=$currentArb, LastKnown=$lastKnownArb")

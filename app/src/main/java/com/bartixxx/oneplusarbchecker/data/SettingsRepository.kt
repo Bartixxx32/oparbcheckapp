@@ -24,6 +24,8 @@ class SettingsRepository(private val context: Context) {
         val LAST_KNOWN_ARB = longPreferencesKey("last_known_arb")
         val LAST_KNOWN_BUILD_ID = stringPreferencesKey("last_known_build_id")
         val INSTALLATION_ID = stringPreferencesKey("installation_id")
+        val TELEMETRY_ENABLED = booleanPreferencesKey("telemetry_enabled")
+        val APP_UPDATES_ENABLED = booleanPreferencesKey("app_updates_enabled")
     }
 
     val installationIdFlow: Flow<String?> = context.dataStore.data
@@ -64,6 +66,16 @@ class SettingsRepository(private val context: Context) {
             preferences[ROOT_MODE_ENABLED] ?: false
         }
     
+    val telemetryEnabledFlow: Flow<Boolean> = context.dataStore.data
+        .map { preferences ->
+            preferences[TELEMETRY_ENABLED] ?: true
+        }
+
+    val appUpdatesEnabledFlow: Flow<Boolean> = context.dataStore.data
+        .map { preferences ->
+            preferences[APP_UPDATES_ENABLED] ?: true
+        }
+
     suspend fun setRootModeEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[ROOT_MODE_ENABLED] = enabled
@@ -111,6 +123,18 @@ class SettingsRepository(private val context: Context) {
     suspend fun setLastCheckTimestamp(timestamp: Long) {
         context.dataStore.edit { preferences ->
             preferences[LAST_CHECK_TIMESTAMP] = timestamp
+        }
+    }
+
+    suspend fun setTelemetryEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[TELEMETRY_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setAppUpdatesEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[APP_UPDATES_ENABLED] = enabled
         }
     }
 }

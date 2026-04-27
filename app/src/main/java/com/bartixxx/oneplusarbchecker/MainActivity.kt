@@ -234,18 +234,23 @@ fun FusedStatusScreen(
                 val isConverted = (deviceData?.expectBarometer == true && !hasBarometer) || 
                                  (deviceData?.expectEsim == true && !hasEsim)
 
-                launch { 
-                    try { 
-                        api.recordHit(
-                            installId = installId,
-                            model = model,
-                            version = version,
-                            isConverted = isConverted,
-                            isManual = true
-                        ) 
-                    } catch (e: Exception) { 
-                        // Silent failure for production
-                    } 
+                val telemetryEnabled = settingsRepo.telemetryEnabledFlow.first()
+
+                if (telemetryEnabled) {
+                    launch {
+                        try {
+                            api.recordHit(
+                                installId = installId,
+                                model = model,
+                                version = version,
+                                variant = currentRegion ?: "Unknown",
+                                isConverted = isConverted,
+                                isManual = true
+                            )
+                        } catch (e: Exception) {
+                            // Silent failure for production
+                        }
+                    }
                 }
 
                 if (deviceData != null || rootArb != null) {
@@ -807,17 +812,18 @@ fun WelcomeDialog(settingsRepo: SettingsRepository, onFinished: (Long, Boolean) 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
+                    Switch(
                         checked = notifications,
                         onCheckedChange = { HapticUtils.vibrateTick(context); notifications = it }
                     )
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column {
                          Text(stringResource(R.string.enable_notifications))
                          Text(stringResource(R.string.notification_subtitle), fontSize = 12.sp, color = Color.Gray)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 var isRootAvailable by remember { mutableStateOf(false) }
                 LaunchedEffect(Unit) {
@@ -830,11 +836,12 @@ fun WelcomeDialog(settingsRepo: SettingsRepository, onFinished: (Long, Boolean) 
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.alpha(if (isRootAvailable) 1f else 0.5f)
                 ) {
-                    Checkbox(
+                    Switch(
                         checked = rootMode,
                         enabled = isRootAvailable,
                         onCheckedChange = { HapticUtils.vibrateTick(context); rootMode = it }
                     )
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(stringResource(R.string.enable_root))
                         Text(
@@ -872,6 +879,10 @@ fun SettingsDialog(settingsRepo: SettingsRepository, onDismiss: () -> Unit) {
     val currentInterval by settingsRepo.checkIntervalFlow.collectAsState(initial = 1L)
     val notificationsEnabled by settingsRepo.notificationsEnabledFlow.collectAsState(initial = false)
     val rootModeEnabled by settingsRepo.rootModeEnabledFlow.collectAsState(initial = false)
+    val telemetryEnabled by settingsRepo.telemetryEnabledFlow.collectAsState(initial = true)
+    val appUpdatesEnabled by settingsRepo.appUpdatesEnabledFlow.collectAsState(initial = true)
+
+    var showTelemetryWarning by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -902,7 +913,7 @@ fun SettingsDialog(settingsRepo: SettingsRepository, onDismiss: () -> Unit) {
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
+                    Switch(
                         checked = notificationsEnabled,
                         onCheckedChange = { enabled ->
                             HapticUtils.vibrateTick(context)
@@ -914,13 +925,14 @@ fun SettingsDialog(settingsRepo: SettingsRepository, onDismiss: () -> Unit) {
                             }
                         }
                     )
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(stringResource(R.string.enable_notifications))
                         Text(stringResource(R.string.notification_subtitle), fontSize = 12.sp, color = Color.Gray)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 var isRootAvailable by remember { mutableStateOf(false) }
                 LaunchedEffect(Unit) {
@@ -933,7 +945,7 @@ fun SettingsDialog(settingsRepo: SettingsRepository, onDismiss: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.alpha(if (isRootAvailable) 1f else 0.5f)
                 ) {
-                    Checkbox(
+                    Switch(
                         checked = rootModeEnabled,
                         enabled = isRootAvailable,
                         onCheckedChange = { enabled ->
@@ -941,6 +953,7 @@ fun SettingsDialog(settingsRepo: SettingsRepository, onDismiss: () -> Unit) {
                             scope.launch { settingsRepo.setRootModeEnabled(enabled) }
                         }
                     )
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(stringResource(R.string.enable_root))
                         Text(
@@ -950,11 +963,115 @@ fun SettingsDialog(settingsRepo: SettingsRepository, onDismiss: () -> Unit) {
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(
+                        checked = telemetryEnabled,
+                        onCheckedChange = { enabled ->
+                            HapticUtils.vibrateTick(context)
+                            if (!enabled) {
+                                showTelemetryWarning = true
+                            } else {
+                                scope.launch { settingsRepo.setTelemetryEnabled(true) }
+                            }
+                        }
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(stringResource(R.string.telemetry_title))
+                        Text(stringResource(R.string.telemetry_subtitle), fontSize = 12.sp, color = Color.Gray)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(
+                        checked = appUpdatesEnabled,
+                        onCheckedChange = { enabled ->
+                            HapticUtils.vibrateTick(context)
+                            scope.launch { settingsRepo.setAppUpdatesEnabled(enabled) }
+                        }
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(stringResource(R.string.app_updates_title))
+                        Text(stringResource(R.string.app_updates_subtitle), fontSize = 12.sp, color = Color.Gray)
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.close))
+            }
+        }
+    )
+
+    if (showTelemetryWarning) {
+        TelemetryWarningDialog(
+            onDismiss = { showTelemetryWarning = false },
+            onConfirm = {
+                scope.launch { settingsRepo.setTelemetryEnabled(false) }
+                showTelemetryWarning = false
+            }
+        )
+    }
+}
+
+@Composable
+fun TelemetryWarningDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    var secondsLeft by remember { mutableIntStateOf(10) }
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        while (secondsLeft > 0) {
+            kotlinx.coroutines.delay(1000)
+            secondsLeft--
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.telemetry_dialog_title)) },
+        text = { Text(stringResource(R.string.telemetry_dialog_msg)) },
+        confirmButton = {
+            Button(
+                onClick = { HapticUtils.vibrateClick(context); onDismiss() },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF4CAF50), // Green
+                    contentColor = Color.White
+                )
+            ) {
+                Text(stringResource(R.string.keep_enabled))
+            }
+        },
+        dismissButton = {
+            OutlinedButton(
+                onClick = { HapticUtils.vibrateClick(context); onConfirm() },
+                enabled = secondsLeft == 0,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                ),
+                border = ButtonDefaults.outlinedButtonBorder.copy(
+                    brush = androidx.compose.ui.graphics.SolidColor(
+                        MaterialTheme.colorScheme.outline.copy(alpha = if (secondsLeft == 0) 0.4f else 0.1f)
+                    )
+                )
+            ) {
+                Text(
+                    text = if (secondsLeft > 0) 
+                        stringResource(R.string.telemetry_wait, secondsLeft) 
+                    else 
+                        stringResource(R.string.disable),
+                    fontSize = 12.sp
+                )
             }
         }
     )

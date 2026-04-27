@@ -78,4 +78,15 @@
     <string name="update_available_title">Dostępna aktualizacja</string>
     <string name="update_available_msg">Nowa wersja OnePlus ARB Checker (%1$s) jest dostępna na GitHub.</string>
     <string name="download">Pobierz</string>
+
+    <string name="telemetry_title">Anonimowa telemetria</string>
+    <string name="telemetry_subtitle">Pomóż nam ulepszać bazę danych ARB</string>
+    <string name="telemetry_dialog_title">Wyłączyć telemetrię?</string>
+    <string name="telemetry_dialog_msg">Anonimowe statystyki pomagają nam szybciej wykrywać zmiany ARB dla całej społeczności. Dane są anonimowe, nie są udostępniane publicznie i nie pozwalają na identyfikację użytkownika.\n\nW przyszłości te dane pozwolą nam wykrywać i ostrzegać o potencjalnych problemach z aktualizacjami dla urządzeń po konwersji regionu, zanim one wystąpią.\n\nCzy na pewno chcesz ją wyłączyć?</string>
+    <string name="telemetry_wait">Czekaj %1$d s</string>
+    <string name="disable">Wyłącz</string>
+    <string name="keep_enabled">Zostaw włączone</string>
+
+    <string name="app_updates_title">Sprawdzaj aktualizacje aplikacji</string>
+    <string name="app_updates_subtitle">Bądź na bieżąco z poprawkami bazy danych i nowymi funkcjami</string>
 </resources>
