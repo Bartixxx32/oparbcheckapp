@@ -1,8 +1,14 @@
 package com.bartixxx.oneplusarbchecker.utils
 
+import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorManager
+import android.os.Build
+import android.telephony.euicc.EuiccManager
 import android.util.Log
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import kotlinx.coroutines.delay
 
 object SystemUtils {
     private const val TAG = "ARB_CHECKER"
@@ -110,9 +116,11 @@ object SystemUtils {
         return null
     }
 
-    fun hasBarometer(context: android.content.Context): Boolean {
-        val sensorManager = context.getSystemService(android.content.Context.SENSOR_SERVICE) as android.hardware.SensorManager
-        return sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_PRESSURE) != null
+    fun hasBarometer(context: Context): Boolean {
+        val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val result = sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE) != null
+        Log.d(TAG, "hasBarometer: $result")
+        return result
     }
 
     /**
@@ -120,10 +128,57 @@ object SystemUtils {
      * Highly reliable for distinguishing Chinese OnePlus hardware (no eSIM) 
      * from Global hardware (has eSIM) in models from 2022 onwards.
      */
-    fun hasEsimHardware(context: android.content.Context): Boolean {
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.P) return false
-        val euiccManager = context.getSystemService(android.content.Context.EUICC_SERVICE) as? android.telephony.euicc.EuiccManager
-        return euiccManager?.isEnabled == true
+    fun hasEsimHardware(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
+        val euiccManager = context.getSystemService(Context.EUICC_SERVICE) as? EuiccManager
+        val result = euiccManager?.isEnabled == true
+        Log.d(TAG, "hasEsimHardware: $result")
+        return result
+    }
+
+    /**
+     * Runs conversion detection with retry logic.
+     * Gives Android's telephony/sensor stack time to initialize.
+     * 
+     * @param retryCount number of retries if detection indicates conversion-negative
+     * @param retryDelayMs delay between retries in milliseconds
+     * @return Pair(hasEsim, hasBarometer)
+     */
+    suspend fun detectHardwareWithRetry(
+        context: Context,
+        expectEsim: Boolean,
+        expectBarometer: Boolean,
+        retryCount: Int = 3,
+        retryDelayMs: Long = 100L
+    ): Pair<Boolean, Boolean> {
+        repeat(retryCount) { attempt ->
+            val hasEsim = hasEsimHardware(context)
+            val hasBarometer = hasBarometer(context)
+
+            // If detection matches expectations, or we detect features present — trust it immediately.
+            // We only retry when we get "feature absent" because that might be a false negative.
+            val esimOk = !expectEsim || hasEsim     // not expected, or detected
+            val barometerOk = !expectBarometer || hasBarometer
+
+            if (esimOk && barometerOk) {
+                Log.d(TAG, "detectHardwareWithRetry: passed on attempt ${attempt + 1} " +
+                        "(esim=$hasEsim, baro=$hasBarometer)")
+                return Pair(hasEsim, hasBarometer)
+            }
+
+            Log.d(TAG, "detectHardwareWithRetry: attempt ${attempt + 1}/$retryCount " +
+                    "got esim=$hasEsim (expect=$expectEsim), baro=$hasBarometer (expect=$expectBarometer), retrying...")
+
+            if (attempt < retryCount - 1) {
+                delay(retryDelayMs)
+            }
+        }
+
+        // Final result after all retries exhausted — accept whatever we got
+        val finalEsim = hasEsimHardware(context)
+        val finalBaro = hasBarometer(context)
+        Log.d(TAG, "detectHardwareWithRetry: exhausted retries, final: esim=$finalEsim, baro=$finalBaro")
+        return Pair(finalEsim, finalBaro)
     }
 
     fun getWidevineInfo(): Pair<String, String>? {

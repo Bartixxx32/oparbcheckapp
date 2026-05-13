@@ -228,11 +228,22 @@ fun FusedStatusScreen(
                 }
 
                 // Determine conversion status for telemetry
-                val hasBarometer = SystemUtils.hasBarometer(context)
-                val hasEsim = SystemUtils.hasEsimHardware(context)
-                
-                val isConverted = (deviceData?.expectBarometer == true && !hasBarometer) || 
-                                 (deviceData?.expectEsim == true && !hasEsim)
+                val expectEsim = deviceData?.expectEsim ?: false
+                val expectBarometer = deviceData?.expectBarometer ?: false
+
+                val (hasEsim, hasBarometer) = if (expectEsim || expectBarometer) {
+                    SystemUtils.detectHardwareWithRetry(
+                        context = context,
+                        expectEsim = expectEsim,
+                        expectBarometer = expectBarometer,
+                        retryCount = 3,
+                        retryDelayMs = 100L
+                    )
+                } else {
+                    Pair(SystemUtils.hasEsimHardware(context), SystemUtils.hasBarometer(context))
+                }
+
+                val isConverted = (expectEsim && !hasEsim) || (expectBarometer && !hasBarometer)
 
                 val telemetryEnabled = settingsRepo.telemetryEnabledFlow.first()
 

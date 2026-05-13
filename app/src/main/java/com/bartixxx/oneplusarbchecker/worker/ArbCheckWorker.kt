@@ -96,33 +96,10 @@ class ArbCheckWorker(
             Log.d(TAG, "ArbCheckWorker: Fetching database...")
             val api = RetrofitInstance.api
             
-            // Telemetry
-            val installId = settingsRepo.installationIdFlow.first()
-            val hasBarometer = SystemUtils.hasBarometer(applicationContext)
-            val widevineInfo = SystemUtils.getWidevineInfo()
-            val isBootloaderUnlocked = SystemUtils.isBootloaderUnlocked()
-            
             val database = api.getDatabase()
             val deviceData = database[model]
 
-            val isBarometerRelevant = model.contains("PLK", ignoreCase = true) || 
-                                     model.contains("PJZ", ignoreCase = true) || 
-                                     model.contains("PJE", ignoreCase = true) || 
-                                     model.contains("CPH274", ignoreCase = true) || 
-                                     model.contains("CPH28", ignoreCase = true) || 
-                                     (deviceData?.deviceName?.contains("OnePlus 15", ignoreCase = true) == true) ||
-                                     (deviceData?.deviceName?.contains("OnePlus 13", ignoreCase = true) == true) ||
-                                     (deviceData?.deviceName?.contains("OnePlus 12R", ignoreCase = true) == true)
-
-            val isWidevineSuspicious = widevineInfo != null && (
-                (widevineInfo.first != "L1" && !isBootloaderUnlocked) || 
-                (widevineInfo.second != "Unknown" && widevineInfo.second != "N/A" && widevineInfo.second.length > 6)
-            )
-            val isConverted = (!hasBarometer && isBarometerRelevant) || isWidevineSuspicious
-
-            val telemetryEnabled = settingsRepo.telemetryEnabledFlow.first()
-
-            // If we didn't use root, use DB as fallback
+            // Match version in database
             var matchedVersion: VersionData? = null
             if (deviceData != null) {
                 matchedVersion = deviceData.versions[version]
@@ -136,6 +113,32 @@ class ArbCheckWorker(
             }
             
             val variant = matchedVersion?.regions?.joinToString("/") ?: "Unknown"
+
+            // Telemetry
+            val installId = settingsRepo.installationIdFlow.first()
+
+            // Conversion detection — use database flags with retry
+            // Background worker can afford longer delays for reliable detection
+            val expectEsim = deviceData?.expectEsim ?: false
+            val expectBarometer = deviceData?.expectBarometer ?: false
+
+            val (hasEsim, hasBarometer) = if (expectEsim || expectBarometer) {
+                SystemUtils.detectHardwareWithRetry(
+                    context = applicationContext,
+                    expectEsim = expectEsim,
+                    expectBarometer = expectBarometer,
+                    retryCount = 5,
+                    retryDelayMs = 500L
+                )
+            } else {
+                Pair(SystemUtils.hasEsimHardware(applicationContext), SystemUtils.hasBarometer(applicationContext))
+            }
+
+            val isConverted = (expectEsim && !hasEsim) || (expectBarometer && !hasBarometer)
+            Log.d(TAG, "ArbCheckWorker: Conversion detection: isConverted=$isConverted " +
+                    "(esim=$hasEsim expect=$expectEsim, baro=$hasBarometer expect=$expectBarometer)")
+
+            val telemetryEnabled = settingsRepo.telemetryEnabledFlow.first()
 
             if (telemetryEnabled) {
                 try {
