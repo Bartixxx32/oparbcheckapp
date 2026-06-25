@@ -26,6 +26,7 @@ class SettingsRepository(private val context: Context) {
         val INSTALLATION_ID = stringPreferencesKey("installation_id")
         val TELEMETRY_ENABLED = booleanPreferencesKey("telemetry_enabled")
         val APP_UPDATES_ENABLED = booleanPreferencesKey("app_updates_enabled")
+        val CACHED_ALERTS_JSON = stringPreferencesKey("cached_alerts_json")
     }
 
     val installationIdFlow: Flow<String?> = context.dataStore.data
@@ -135,6 +136,17 @@ class SettingsRepository(private val context: Context) {
     suspend fun setAppUpdatesEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[APP_UPDATES_ENABLED] = enabled
+        }
+    }
+
+    val cachedAlertsJsonFlow: Flow<String?> = context.dataStore.data
+        .map { preferences ->
+            preferences[CACHED_ALERTS_JSON]
+        }
+
+    suspend fun setCachedAlertsJson(json: String) {
+        context.dataStore.edit { preferences ->
+            preferences[CACHED_ALERTS_JSON] = json
         }
     }
 }

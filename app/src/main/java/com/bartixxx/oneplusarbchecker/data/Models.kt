@@ -26,3 +26,13 @@ data class GitHubRelease(
     @SerializedName("name") val name: String? = null,
     @SerializedName("body") val body: String? = null
 )
+
+data class AppInfo(val alerts: List<Alert>)
+
+data class Alert(
+    val id: String,
+    val type: String,
+    val title: String,
+    val message: String,
+    val device: String
+)

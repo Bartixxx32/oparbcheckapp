@@ -20,4 +20,7 @@ interface AmIFusedApi {
 
     @GET("https://api.github.com/repos/Bartixxx32/oparbcheckapp/releases/latest")
     suspend fun getLatestRelease(): GitHubRelease
+
+    @GET("appinfo.json")
+    suspend fun getAppInfo(): AppInfo
 }

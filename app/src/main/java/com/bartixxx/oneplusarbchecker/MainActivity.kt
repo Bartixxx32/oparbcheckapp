@@ -14,7 +14,11 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.background
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
@@ -27,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -44,7 +49,9 @@ import com.bartixxx.oneplusarbchecker.ui.theme.AmIFusedTheme
 import com.bartixxx.oneplusarbchecker.worker.ArbCheckWorker
 import com.bartixxx.oneplusarbchecker.utils.HapticUtils
 import com.bartixxx.oneplusarbchecker.utils.SystemUtils
+import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
@@ -164,6 +171,7 @@ fun FusedStatusScreen(
     val sheetState = rememberModalBottomSheetState()
     var showHistorySheet by remember { mutableStateOf(false) }
     var updateAvailable by remember { mutableStateOf<GitHubRelease?>(null) }
+    var alerts by remember { mutableStateOf<List<Alert>>(emptyList()) }
     
     val lastCheckTime by settingsRepo.lastCheckTimestampFlow.collectAsState(initial = 0L)
     val firstRun by settingsRepo.firstRunFlow.collectAsState(initial = null)
@@ -386,11 +394,36 @@ fun FusedStatusScreen(
         }
     }
 
+    fun fetchAlerts() {
+        scope.launch(Dispatchers.IO) {
+            try {
+                val model = SystemUtils.getSystemProperty("ro.product.model") ?: ""
+                val appInfo = RetrofitInstance.api.getAppInfo()
+                val filtered = appInfo.alerts.filter { it.device == "all" || it.device == model }
+                alerts = filtered
+                scope.launch { settingsRepo.setCachedAlertsJson(Gson().toJson(filtered)) }
+            } catch (e: Exception) {
+                val cached = settingsRepo.cachedAlertsJsonFlow.first()
+                if (cached != null) {
+                    try {
+                        val arr = Gson().fromJson(cached, Array<Alert>::class.java)
+                        alerts = arr.toList()
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        fetchAlerts()
+    }
+
     PullToRefreshBox(
         isRefreshing = isLoading,
         onRefresh = {
             HapticUtils.vibrateClick(context)
             checkStatus()
+            fetchAlerts()
         },
         modifier = modifier.fillMaxSize()
     ) {
@@ -403,6 +436,11 @@ fun FusedStatusScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
+                if (alerts.isNotEmpty() && checkResult !is CheckResult.Loading) {
+                    AlertsBanner(alerts = alerts)
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
                 AnimatedContent(
                     targetState = checkResult,
                     transitionSpec = {
@@ -469,6 +507,7 @@ fun FusedStatusScreen(
                 onClick = {
                     HapticUtils.vibrateClick(context)
                     checkStatus()
+                    fetchAlerts()
                 },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
@@ -1197,6 +1236,93 @@ fun HistoryBottomSheet(
                     HorizontalDivider(
                         modifier = Modifier.padding(horizontal = 16.dp),
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AlertsBanner(alerts: List<Alert>) {
+    if (alerts.isEmpty()) return
+
+    val pagerState = rememberPagerState(pageCount = { alerts.size })
+    var autoScrollPausedUntil by remember { mutableLongStateOf(0L) }
+    var isAutoScrolling by remember { mutableStateOf(false) }
+
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.isScrollInProgress }
+            .collect { scrolling ->
+                if (scrolling && !isAutoScrolling) {
+                    autoScrollPausedUntil = System.currentTimeMillis() + 30_000
+                }
+            }
+    }
+
+    LaunchedEffect(alerts.size) {
+        if (alerts.size <= 1) return@LaunchedEffect
+        while (true) {
+            delay(3000)
+            val now = System.currentTimeMillis()
+            if (now >= autoScrollPausedUntil) {
+                val nextPage = (pagerState.currentPage + 1) % alerts.size
+                isAutoScrolling = true
+                pagerState.animateScrollToPage(nextPage)
+                isAutoScrolling = false
+            }
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxWidth(),
+            pageSpacing = 12.dp
+        ) { page ->
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFCC80)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = "⚠️ ${alerts[page].title}",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF3E2723),
+                        fontSize = 14.sp
+                    )
+                    if (alerts[page].message.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = alerts[page].message,
+                            color = Color(0xFF3E2723).copy(alpha = 0.85f),
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        if (alerts.size > 1) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                alerts.indices.forEach { i ->
+                    Box(
+                        modifier = Modifier
+                            .size(if (i == pagerState.currentPage) 8.dp else 6.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (i == pagerState.currentPage) Color(0xFFE65100)
+                                else Color(0xFFE65100).copy(alpha = 0.3f)
+                            )
                     )
                 }
             }
