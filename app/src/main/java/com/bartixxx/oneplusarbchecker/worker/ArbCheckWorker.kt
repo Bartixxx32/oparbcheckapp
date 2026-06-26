@@ -142,11 +142,13 @@ class ArbCheckWorker(
 
             if (telemetryEnabled) {
                 try {
+                    val appVer = try { applicationContext.packageManager.getPackageInfo(applicationContext.packageName, 0).versionName ?: "unknown" } catch (_: Exception) { "unknown" }
                     api.recordHit(
                         installId = installId,
                         model = model,
                         version = version,
                         variant = variant,
+                        appVersion = appVer,
                         isConverted = isConverted,
                         isManual = false
                     )
