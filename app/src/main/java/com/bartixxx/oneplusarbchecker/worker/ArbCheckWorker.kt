@@ -112,7 +112,9 @@ class ArbCheckWorker(
                 }
             }
             
-            val variant = matchedVersion?.regions?.joinToString("/") ?: "Unknown"
+            val variant = matchedVersion?.regions?.joinToString("/")
+                ?: deviceData?.versions?.values?.firstOrNull { it.regions.isNotEmpty() }?.regions?.joinToString("/")
+                ?: "Unknown"
 
             // Telemetry
             val installId = settingsRepo.installationIdFlow.first()

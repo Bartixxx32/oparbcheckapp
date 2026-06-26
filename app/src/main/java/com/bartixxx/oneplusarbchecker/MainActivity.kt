@@ -287,6 +287,7 @@ fun FusedStatusScreen(
                     }
                     
                     currentRegion = matchedVersion?.regions?.joinToString(", ")
+                        ?: deviceData?.versions?.values?.firstOrNull { it.regions.isNotEmpty() }?.regions?.joinToString(", ")
                     
                     var warningText: String? = null
                     var isFused: Boolean?
