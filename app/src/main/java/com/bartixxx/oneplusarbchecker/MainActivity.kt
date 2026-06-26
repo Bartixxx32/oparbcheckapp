@@ -227,8 +227,9 @@ fun FusedStatusScreen(
                     
                     val latestClean = latestRelease.tagName.replace("v", "").trim()
                     val currentClean = currentVersion.replace("v", "").trim()
+                    val dismissed = settingsRepo.dismissedUpdateVersionFlow.first()
                     
-                    if (latestClean != currentClean && isVersionNewer(currentClean, latestClean)) {
+                    if (latestClean != currentClean && isVersionNewer(currentClean, latestClean) && latestClean != dismissed) {
                         updateAvailable = latestRelease
                     }
                 } catch (e: Exception) {
@@ -530,7 +531,13 @@ fun FusedStatusScreen(
             if (updateAvailable != null) {
                 UpdateDialog(
                     release = updateAvailable!!,
-                    onDismiss = { updateAvailable = null }
+                    onDismiss = {
+                        scope.launch {
+                            val clean = updateAvailable!!.tagName.replace("v", "").trim()
+                            settingsRepo.setDismissedUpdateVersion(clean)
+                        }
+                        updateAvailable = null
+                    }
                 )
             }
         }
