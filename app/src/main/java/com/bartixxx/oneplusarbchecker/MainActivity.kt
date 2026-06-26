@@ -259,11 +259,13 @@ fun FusedStatusScreen(
                 if (telemetryEnabled) {
                     launch {
                         try {
+                            val appVer = try { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown" } catch (_: Exception) { "unknown" }
                             api.recordHit(
                                 installId = installId,
                                 model = model,
                                 version = version,
                                 variant = currentRegion ?: "Unknown",
+                                appVersion = appVer,
                                 isConverted = isConverted,
                                 isManual = true
                             )
@@ -531,9 +533,10 @@ fun FusedStatusScreen(
             if (updateAvailable != null) {
                 UpdateDialog(
                     release = updateAvailable!!,
-                    onDismiss = {
+                    onDismiss = { updateAvailable = null },
+                    onDontAskAgain = {
+                        val clean = updateAvailable?.tagName?.replace("v", "")?.trim() ?: ""
                         scope.launch {
-                            val clean = updateAvailable!!.tagName.replace("v", "").trim()
                             settingsRepo.setDismissedUpdateVersion(clean)
                         }
                         updateAvailable = null
@@ -561,7 +564,7 @@ private fun isVersionNewer(current: String, latest: String): Boolean {
 }
 
 @Composable
-fun UpdateDialog(release: GitHubRelease, onDismiss: () -> Unit) {
+fun UpdateDialog(release: GitHubRelease, onDismiss: () -> Unit, onDontAskAgain: () -> Unit) {
     val context = LocalContext.current
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -579,18 +582,26 @@ fun UpdateDialog(release: GitHubRelease, onDismiss: () -> Unit) {
                 }
             }
         },
-        confirmButton = {
-            Button(onClick = {
-                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(release.htmlUrl))
-                context.startActivity(intent)
-                onDismiss()
-            }) {
-                Text(stringResource(R.string.download))
+        dismissButton = {
+            TextButton(onClick = onDontAskAgain) {
+                Text(stringResource(R.string.dont_ask_again), fontSize = 12.sp)
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.close))
+        confirmButton = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.close))
+                }
+                Button(onClick = {
+                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(release.htmlUrl))
+                    context.startActivity(intent)
+                    onDontAskAgain()
+                }) {
+                    Text(stringResource(R.string.download))
+                }
             }
         }
     )

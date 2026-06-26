@@ -75,6 +75,7 @@
     <string name="update_available_title">Update Available</string>
     <string name="update_available_msg">A new version of OnePlus ARB Checker (%1$s) is available on GitHub.</string>
     <string name="download">Download</string>
+    <string name="dont_ask_again">Don\'t ask again</string>
 
     <string name="telemetry_title">Anonymous Telemetry</string>
     <string name="telemetry_subtitle">Help us improve the ARB database</string>

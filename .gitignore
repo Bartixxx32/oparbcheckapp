@@ -21,3 +21,4 @@ keystore.properties
 .artifacts/
 worker_code.js
 worker.js
+supabase_migration.sql
