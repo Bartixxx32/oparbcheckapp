@@ -88,4 +88,7 @@
 
     <string name="app_updates_title">Sprawdzaj aktualizacje aplikacji</string>
     <string name="app_updates_subtitle">Bądź na bieżąco z poprawkami bazy danych i nowymi funkcjami</string>
+
+    <string name="alert_notif_title">Powiadomienia o alertach</string>
+    <string name="alert_notif_subtitle">Otrzymuj powiadomienia o nowych ogłoszeniach społeczności</string>
 </resources>

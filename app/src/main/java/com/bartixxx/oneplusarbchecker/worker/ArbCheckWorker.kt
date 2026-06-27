@@ -15,6 +15,8 @@ import com.bartixxx.oneplusarbchecker.R
 import com.bartixxx.oneplusarbchecker.data.*
 import com.bartixxx.oneplusarbchecker.utils.SystemUtils
 import com.bartixxx.oneplusarbchecker.utils.ArbExtractor
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.first
 
 class ArbCheckWorker(
@@ -188,6 +190,39 @@ class ArbCheckWorker(
                 }
             }
             
+            // 4. Check for appinfo.json alerts
+            val alertsEnabled = settingsRepo.alertsEnabledFlow.first()
+            if (alertsEnabled) {
+                try {
+                    val appInfo = api.getAppInfo()
+                    val filtered = appInfo.alerts.filter { it.device == "all" || it.device == model }
+                    val notifyAlerts = filtered.filter { it.display != "banner" }
+
+                    val gson = Gson()
+                    val notifiedJson = settingsRepo.notifiedAlertIdsFlow.first()
+                    val notifiedIds: MutableSet<String> = if (notifiedJson != null) {
+                        gson.fromJson(notifiedJson, object : TypeToken<MutableSet<String>>() {}.type)
+                    } else {
+                        mutableSetOf()
+                    }
+
+                    val newAlerts = notifyAlerts.filter { it.id !in notifiedIds }
+
+                    if (notifyAlerts.isNotEmpty() && notifiedIds.isEmpty()) {
+                        // First fetch - save all IDs, send no notifications
+                        settingsRepo.setNotifiedAlertIds(gson.toJson(notifyAlerts.map { it.id }.toSet()))
+                    } else if (newAlerts.isNotEmpty()) {
+                        for (alert in newAlerts) {
+                            sendNotification(alert.title, alert.message)
+                        }
+                        notifiedIds.addAll(newAlerts.map { it.id })
+                        settingsRepo.setNotifiedAlertIds(gson.toJson(notifiedIds))
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Alert check failed", e)
+                }
+            }
+
             // Update last known state
             if (currentArb != -1) {
                 settingsRepo.setLastKnownArb(currentArb)

@@ -87,4 +87,7 @@
 
     <string name="app_updates_title">Check for App Updates</string>
     <string name="app_updates_subtitle">Stay up-to-date with latest improvements and database fixes</string>
+
+    <string name="alert_notif_title">Alert Notifications</string>
+    <string name="alert_notif_subtitle">Get notified about new announcements from the community</string>
 </resources>

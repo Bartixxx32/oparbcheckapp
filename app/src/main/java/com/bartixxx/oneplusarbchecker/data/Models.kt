@@ -34,5 +34,6 @@ data class Alert(
     val type: String,
     val title: String,
     val message: String,
-    val device: String
+    val device: String,
+    val display: String? = null
 )

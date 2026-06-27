@@ -28,6 +28,8 @@ class SettingsRepository(private val context: Context) {
         val APP_UPDATES_ENABLED = booleanPreferencesKey("app_updates_enabled")
         val CACHED_ALERTS_JSON = stringPreferencesKey("cached_alerts_json")
         val DISMISSED_UPDATE_VERSION = stringPreferencesKey("dismissed_update_version")
+        val ALERTS_ENABLED = booleanPreferencesKey("alerts_enabled")
+        val NOTIFIED_ALERT_IDS = stringPreferencesKey("notified_alert_ids")
     }
 
     val installationIdFlow: Flow<String?> = context.dataStore.data
@@ -159,6 +161,28 @@ class SettingsRepository(private val context: Context) {
     suspend fun setDismissedUpdateVersion(version: String) {
         context.dataStore.edit { preferences ->
             preferences[DISMISSED_UPDATE_VERSION] = version
+        }
+    }
+
+    val alertsEnabledFlow: Flow<Boolean> = context.dataStore.data
+        .map { preferences ->
+            preferences[ALERTS_ENABLED] ?: true
+        }
+
+    suspend fun setAlertsEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[ALERTS_ENABLED] = enabled
+        }
+    }
+
+    val notifiedAlertIdsFlow: Flow<String?> = context.dataStore.data
+        .map { preferences ->
+            preferences[NOTIFIED_ALERT_IDS]
+        }
+
+    suspend fun setNotifiedAlertIds(json: String) {
+        context.dataStore.edit { preferences ->
+            preferences[NOTIFIED_ALERT_IDS] = json
         }
     }
 }

@@ -404,7 +404,7 @@ fun FusedStatusScreen(
                 val model = SystemUtils.getSystemProperty("ro.product.model") ?: ""
                 val appInfo = RetrofitInstance.api.getAppInfo()
                 val filtered = appInfo.alerts.filter { it.device == "all" || it.device == model }
-                alerts = filtered
+                alerts = filtered.filter { it.display != "notification" }
                 scope.launch { settingsRepo.setCachedAlertsJson(Gson().toJson(filtered)) }
             } catch (e: Exception) {
                 val cached = settingsRepo.cachedAlertsJsonFlow.first()
@@ -819,7 +819,7 @@ fun MainTopAppBar(settingsRepo: SettingsRepository) {
     TopAppBar(
         title = { Text(stringResource(R.string.app_name)) },
         actions = {
-            IconButton(onClick = { HapticUtils.vibrateClick(context); showSettings = true }) {
+IconButton(onClick = { HapticUtils.vibrateClick(context); showSettings = true }) {
                 Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings))
             }
         }
@@ -950,6 +950,7 @@ fun SettingsDialog(settingsRepo: SettingsRepository, onDismiss: () -> Unit) {
     val rootModeEnabled by settingsRepo.rootModeEnabledFlow.collectAsState(initial = false)
     val telemetryEnabled by settingsRepo.telemetryEnabledFlow.collectAsState(initial = true)
     val appUpdatesEnabled by settingsRepo.appUpdatesEnabledFlow.collectAsState(initial = true)
+    val alertsEnabled by settingsRepo.alertsEnabledFlow.collectAsState(initial = true)
 
     var showTelemetryWarning by remember { mutableStateOf(false) }
 
@@ -1072,6 +1073,25 @@ fun SettingsDialog(settingsRepo: SettingsRepository, onDismiss: () -> Unit) {
                     Column {
                         Text(stringResource(R.string.app_updates_title))
                         Text(stringResource(R.string.app_updates_subtitle), fontSize = 12.sp, color = Color.Gray)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(
+                        checked = alertsEnabled,
+                        onCheckedChange = { enabled ->
+                            HapticUtils.vibrateTick(context)
+                            scope.launch { settingsRepo.setAlertsEnabled(enabled) }
+                        }
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(stringResource(R.string.alert_notif_title))
+                        Text(stringResource(R.string.alert_notif_subtitle), fontSize = 12.sp, color = Color.Gray)
                     }
                 }
             }
