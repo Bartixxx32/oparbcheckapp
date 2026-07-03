@@ -147,6 +147,17 @@ class ArbCheckWorker(
             if (telemetryEnabled) {
                 try {
                     val appVer = try { applicationContext.packageManager.getPackageInfo(applicationContext.packageName, 0).versionName ?: "unknown" } catch (_: Exception) { "unknown" }
+                    val telemetryArb = if (currentArb != -1) currentArb else (matchedVersion?.arb ?: -1)
+                    val telemetryIsFused = when {
+                        currentArb != -1 -> if (currentArb > 0) "true" else "false"
+                        matchedVersion != null && !matchedVersion.isHardcoded -> if (matchedVersion.arb > 0) "true" else "false"
+                        else -> "unknown"
+                    }
+                    val telemetryArbSource = when {
+                        currentArb != -1 && rootModeEnabled -> "root"
+                        matchedVersion != null -> "database"
+                        else -> "none"
+                    }
                     api.recordHit(
                         installId = installId,
                         model = model,
@@ -154,7 +165,10 @@ class ArbCheckWorker(
                         variant = variant,
                         appVersion = appVer,
                         isConverted = isConverted,
-                        isManual = false
+                        isManual = false,
+                        arb = telemetryArb,
+                        isFused = telemetryIsFused,
+                        arbSource = telemetryArbSource
                     )
                 } catch (e: Exception) {
                     Log.e(TAG, "Hit record failed", e)

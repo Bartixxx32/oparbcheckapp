@@ -260,6 +260,19 @@ fun FusedStatusScreen(
                     launch {
                         try {
                             val appVer = try { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown" } catch (_: Exception) { "unknown" }
+                            val dbVersion = deviceData?.versions?.get(version)
+                                ?: deviceData?.versions?.entries?.firstOrNull { (k, _) -> k.contains(version, ignoreCase = true) || version.contains(k, ignoreCase = true) }?.value
+                            val telemetryArb = rootArb ?: dbVersion?.arb ?: -1
+                            val telemetryIsFused = when {
+                                rootArb != null -> if (rootArb > 0) "true" else "false"
+                                dbVersion != null && !dbVersion.isHardcoded -> if (dbVersion.arb > 0) "true" else "false"
+                                else -> "unknown"
+                            }
+                            val telemetryArbSource = when {
+                                rootArb != null -> "root"
+                                dbVersion != null -> "database"
+                                else -> "none"
+                            }
                             api.recordHit(
                                 installId = installId,
                                 model = model,
@@ -267,7 +280,10 @@ fun FusedStatusScreen(
                                 variant = currentRegion ?: "Unknown",
                                 appVersion = appVer,
                                 isConverted = isConverted,
-                                isManual = true
+                                isManual = true,
+                                arb = telemetryArb,
+                                isFused = telemetryIsFused,
+                                arbSource = telemetryArbSource
                             )
                         } catch (e: Exception) {
                             // Silent failure for production

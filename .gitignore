@@ -22,3 +22,5 @@ keystore.properties
 worker_code.js
 worker.js
 supabase_migration.sql
+supabase_arb_columns.sql
+wrangler.js

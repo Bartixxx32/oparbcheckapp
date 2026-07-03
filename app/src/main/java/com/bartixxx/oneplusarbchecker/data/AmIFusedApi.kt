@@ -16,7 +16,10 @@ interface AmIFusedApi {
         @Query("variant") variant: String? = null,
         @Query("app_version") appVersion: String? = null,
         @Query("is_converted") isConverted: Boolean? = null,
-        @Query("is_manual") isManual: Boolean = false
+        @Query("is_manual") isManual: Boolean = false,
+        @Query("arb") arb: Int? = null,
+        @Query("is_fused") isFused: String? = null,
+        @Query("arb_source") arbSource: String? = null
     ): ResponseBody
 
     @GET("https://api.github.com/repos/Bartixxx32/oparbcheckapp/releases/latest")
