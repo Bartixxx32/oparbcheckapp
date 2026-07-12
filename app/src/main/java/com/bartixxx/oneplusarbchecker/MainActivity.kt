@@ -1,10 +1,14 @@
 package com.bartixxx.oneplusarbchecker
 
 import android.Manifest
+import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -38,6 +42,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -54,8 +59,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.TimeUnit
+
+private const val TAG = "ARB_CHECKER_UPDATE"
 
 class MainActivity : ComponentActivity() {
     
@@ -583,8 +591,14 @@ private fun isVersionNewer(current: String, latest: String): Boolean {
 @Composable
 fun UpdateDialog(release: GitHubRelease, onDismiss: () -> Unit, onDontAskAgain: () -> Unit) {
     val context = LocalContext.current
+    var downloading by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableFloatStateOf(0f) }
+    val scope = rememberCoroutineScope()
+
+    val apkAsset = release.assets?.firstOrNull { it.name.endsWith(".apk") }
+
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = if (downloading) {{}} else onDismiss,
         title = { Text(stringResource(R.string.update_available_title)) },
         text = {
             Column {
@@ -597,10 +611,25 @@ fun UpdateDialog(release: GitHubRelease, onDismiss: () -> Unit, onDontAskAgain: 
                         color = Color.Gray
                     )
                 }
+                if (downloading) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    LinearProgressIndicator(
+                        progress = { downloadProgress },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "${(downloadProgress * 100).toInt()}%",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDontAskAgain) {
+            TextButton(
+                onClick = onDontAskAgain,
+                enabled = !downloading
+            ) {
                 Text(stringResource(R.string.dont_ask_again), fontSize = 12.sp)
             }
         },
@@ -609,19 +638,89 @@ fun UpdateDialog(release: GitHubRelease, onDismiss: () -> Unit, onDontAskAgain: 
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = onDismiss) {
+                TextButton(
+                    onClick = onDismiss,
+                    enabled = !downloading
+                ) {
                     Text(stringResource(R.string.close))
                 }
-                Button(onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(release.htmlUrl))
-                    context.startActivity(intent)
-                    onDontAskAgain()
-                }) {
+                Button(
+                    onClick = {
+                        if (apkAsset != null) {
+                            downloading = true
+                            downloadProgress = 0f
+                            scope.launch {
+                                try {
+                                    downloadAndInstall(context, apkAsset.browserDownloadUrl, apkAsset.name) { progress -> downloadProgress = progress }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Download failed", e)
+                                    downloading = false
+                                }
+                            }
+                        } else if (release.htmlUrl.isNotBlank()) {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(release.htmlUrl))
+                            context.startActivity(intent)
+                            onDontAskAgain()
+                        }
+                    },
+                    enabled = !downloading
+                ) {
                     Text(stringResource(R.string.download))
                 }
             }
         }
     )
+}
+
+private suspend fun downloadAndInstall(context: Context, url: String, fileName: String, onProgress: (Float) -> Unit = {}) {
+    val destFile = File(context.cacheDir, fileName)
+    if (destFile.exists()) destFile.delete()
+
+    Log.i(TAG, "downloadAndInstall: downloading $url to $destFile")
+
+    withContext(Dispatchers.IO) {
+        val connection = java.net.URL(url).openConnection()
+        connection.connect()
+        val inputStream = connection.getInputStream()
+        val fileLength = connection.contentLengthLong
+        val outputStream = java.io.FileOutputStream(destFile)
+        val buffer = ByteArray(8192)
+        var bytesRead: Int
+        var totalRead = 0L
+        val progressStep = if (fileLength > 0) fileLength / 100 else Long.MAX_VALUE
+        var nextProgressThreshold = progressStep
+        while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+            outputStream.write(buffer, 0, bytesRead)
+            totalRead += bytesRead
+            if (totalRead >= nextProgressThreshold) {
+                val p = if (fileLength > 0) totalRead.toFloat() / fileLength else 0f
+                withContext(Dispatchers.Main) { onProgress(p) }
+                nextProgressThreshold += progressStep
+            }
+        }
+        outputStream.close()
+        inputStream.close()
+        Log.i(TAG, "downloadAndInstall: downloaded $totalRead bytes")
+    }
+
+    val fileUri = FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        destFile
+    )
+    Log.i(TAG, "downloadAndInstall: fileUri=$fileUri, size=${destFile.length()}")
+
+    val installIntent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(fileUri, "application/vnd.android.package-archive")
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    try {
+        context.startActivity(installIntent)
+        Log.i(TAG, "downloadAndInstall: install intent launched")
+    } catch (e: Exception) {
+        Log.e(TAG, "downloadAndInstall: startActivity failed", e)
+    }
 }
 
 @Composable

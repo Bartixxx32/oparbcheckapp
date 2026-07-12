@@ -24,7 +24,15 @@ data class GitHubRelease(
     @SerializedName("tag_name") val tagName: String,
     @SerializedName("html_url") val htmlUrl: String,
     @SerializedName("name") val name: String? = null,
-    @SerializedName("body") val body: String? = null
+    @SerializedName("body") val body: String? = null,
+    @SerializedName("assets") val assets: List<ReleaseAsset>? = null
+)
+
+data class ReleaseAsset(
+    @SerializedName("name") val name: String,
+    @SerializedName("browser_download_url") val browserDownloadUrl: String,
+    @SerializedName("size") val size: Long = 0,
+    @SerializedName("content_type") val contentType: String? = null
 )
 
 data class AppInfo(val alerts: List<Alert>)
