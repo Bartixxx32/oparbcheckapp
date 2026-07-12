@@ -15,8 +15,8 @@ android {
         applicationId = "com.bartixxx.oneplusarbchecker"
         minSdk = 26
         targetSdk = 36
-        versionCode = 36
-        versionName = "1.7.0"
+        versionCode = 37
+        versionName = "1.7.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
