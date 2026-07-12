@@ -140,19 +140,6 @@ object SystemUtils {
         return true
     }
 
-    private fun hasEsimViaUiccCardsInfo(context: Context): Boolean {
-        val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-        val cards = tm.uiccCardsInfo
-        for (card in cards) {
-            if (card.isEuicc) {
-                Log.d(TAG, "hasEsimViaUiccCardsInfo: found eUICC card, id=${card.cardId}")
-                return true
-            }
-        }
-        Log.d(TAG, "hasEsimViaUiccCardsInfo: no eUICC card found (${cards.size} UICC cards)")
-        return false
-    }
-
     suspend fun hasEsimHardwareReliable(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
         val euiccManager = context.getSystemService(Context.EUICC_SERVICE) as? EuiccManager ?: return false
@@ -161,23 +148,7 @@ object SystemUtils {
             return false
         }
 
-        // Try getUiccCardsInfo() — requires only READ_PHONE_STATE (not carrier privileges).
-        // This enumerates all actual UICC cards (physical + eUICC) present on the device.
-        // On converted OnePlus hardware, no eUICC card will be found even though
-        // isEnabled returns true.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            try {
-                val hasEuiccCard = hasEsimViaUiccCardsInfo(context)
-                Log.d(TAG, "hasEsimHardwareReliable: UiccCardsInfo says hasEuicc=$hasEuiccCard")
-                return hasEuiccCard
-            } catch (e: SecurityException) {
-                Log.w(TAG, "hasEsimHardwareReliable: UiccCardsInfo blocked: ${e.message}")
-            } catch (e: Exception) {
-                Log.e(TAG, "hasEsimHardwareReliable: UiccCardsInfo failed", e)
-            }
-        }
-
-        // Try to get EID — this actually queries the eUICC hardware.
+        // Try getEid() — queries the eUICC hardware.
         // On converted OnePlus devices, isEnabled may be true but
         // getting the EID will fail because no physical card exists.
         try {
