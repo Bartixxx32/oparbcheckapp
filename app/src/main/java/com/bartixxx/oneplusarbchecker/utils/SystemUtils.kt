@@ -4,6 +4,7 @@ import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorManager
 import android.os.Build
+import android.telephony.TelephonyManager
 import android.telephony.euicc.EuiccManager
 import android.util.Log
 import java.io.BufferedReader
@@ -131,9 +132,98 @@ object SystemUtils {
     fun hasEsimHardware(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
         val euiccManager = context.getSystemService(Context.EUICC_SERVICE) as? EuiccManager
-        val result = euiccManager?.isEnabled == true
-        Log.d(TAG, "hasEsimHardware: $result")
-        return result
+        if (euiccManager?.isEnabled != true) {
+            Log.d(TAG, "hasEsimHardware: false (disabled)")
+            return false
+        }
+        Log.d(TAG, "hasEsimHardware: true (isEnabled)")
+        return true
+    }
+
+    private fun hasEsimViaUiccCardsInfo(context: Context): Boolean {
+        val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        val cards = tm.uiccCardsInfo
+        for (card in cards) {
+            if (card.isEuicc) {
+                Log.d(TAG, "hasEsimViaUiccCardsInfo: found eUICC card, id=${card.cardId}")
+                return true
+            }
+        }
+        Log.d(TAG, "hasEsimViaUiccCardsInfo: no eUICC card found (${cards.size} UICC cards)")
+        return false
+    }
+
+    suspend fun hasEsimHardwareReliable(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
+        val euiccManager = context.getSystemService(Context.EUICC_SERVICE) as? EuiccManager ?: return false
+        if (!euiccManager.isEnabled) {
+            Log.d(TAG, "hasEsimHardwareReliable: false (disabled)")
+            return false
+        }
+
+        // Try getUiccCardsInfo() — requires only READ_PHONE_STATE (not carrier privileges).
+        // This enumerates all actual UICC cards (physical + eUICC) present on the device.
+        // On converted OnePlus hardware, no eUICC card will be found even though
+        // isEnabled returns true.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            try {
+                val hasEuiccCard = hasEsimViaUiccCardsInfo(context)
+                Log.d(TAG, "hasEsimHardwareReliable: UiccCardsInfo says hasEuicc=$hasEuiccCard")
+                return hasEuiccCard
+            } catch (e: SecurityException) {
+                Log.w(TAG, "hasEsimHardwareReliable: UiccCardsInfo blocked: ${e.message}")
+            } catch (e: Exception) {
+                Log.e(TAG, "hasEsimHardwareReliable: UiccCardsInfo failed", e)
+            }
+        }
+
+        // Try to get EID — this actually queries the eUICC hardware.
+        // On converted OnePlus devices, isEnabled may be true but
+        // getting the EID will fail because no physical card exists.
+        try {
+            val eid = euiccManager.eid
+            if (!eid.isNullOrBlank()) {
+                Log.d(TAG, "hasEsimHardwareReliable: EID present, real eUICC")
+                return true
+            }
+            Log.w(TAG, "hasEsimHardwareReliable: EID null/empty — no real eUICC")
+            return false
+        } catch (e: SecurityException) {
+            Log.w(TAG, "hasEsimHardwareReliable: EID requires carrier privileges")
+        } catch (e: IllegalStateException) {
+            Log.e(TAG, "hasEsimHardwareReliable: EID failed — no eUICC card", e)
+            return false
+        } catch (e: Exception) {
+            Log.e(TAG, "hasEsimHardwareReliable: EID check failed", e)
+            return false
+        }
+
+        // Try TelephonyManager.getCardIdForDefaultEuicc().
+        // On devices WITH real eSIM hardware, this returns a valid card ID (> 0).
+        // On Chinese hardware with global firmware (converted), isEnabled returns true
+        // (software quirk) but cardId returns -1 because no physical eUICC exists.
+        // This is the definitive indicator — isEnabled=true + cardId=-1 = converted.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            try {
+                val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+                val cardId = tm.getCardIdForDefaultEuicc()
+                if (cardId > 0) {
+                    Log.d(TAG, "hasEsimHardwareReliable: cardId valid=$cardId, real eUICC")
+                    return true
+                }
+                Log.w(TAG, "hasEsimHardwareReliable: cardId=$cardId — no eUICC card detected")
+                return false
+            } catch (e: SecurityException) {
+                Log.w(TAG, "hasEsimHardwareReliable: cardId needs privileged phone state")
+            } catch (e: Exception) {
+                Log.e(TAG, "hasEsimHardwareReliable: cardId check failed", e)
+            }
+        }
+
+        // All verification methods exhausted, result is inconclusive.
+        // Fall back to trusting isEnabled.
+        Log.d(TAG, "hasEsimHardwareReliable: all verifications blocked, trusting isEnabled")
+        return true
     }
 
     /**
@@ -152,7 +242,7 @@ object SystemUtils {
         retryDelayMs: Long = 100L
     ): Pair<Boolean, Boolean> {
         repeat(retryCount) { attempt ->
-            val hasEsim = hasEsimHardware(context)
+            val hasEsim = hasEsimHardwareReliable(context)
             val hasBarometer = hasBarometer(context)
 
             // If detection matches expectations, or we detect features present — trust it immediately.
@@ -175,7 +265,7 @@ object SystemUtils {
         }
 
         // Final result after all retries exhausted — accept whatever we got
-        val finalEsim = hasEsimHardware(context)
+        val finalEsim = hasEsimHardwareReliable(context)
         val finalBaro = hasBarometer(context)
         Log.d(TAG, "detectHardwareWithRetry: exhausted retries, final: esim=$finalEsim, baro=$finalBaro")
         return Pair(finalEsim, finalBaro)
