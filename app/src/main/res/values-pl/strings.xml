@@ -77,6 +77,7 @@
     <string name="update_available_msg">Nowa wersja OnePlus ARB Checker (%1$s) jest dostępna na GitHub.</string>
     <string name="download">Pobierz</string>
     <string name="dont_ask_again">Nie pytaj ponownie</string>
+    <string name="downloading">Pobieranie...</string>
 
     <string name="telemetry_title">Anonimowa telemetria</string>
     <string name="telemetry_subtitle">Pomóż nam ulepszać bazę danych ARB</string>
