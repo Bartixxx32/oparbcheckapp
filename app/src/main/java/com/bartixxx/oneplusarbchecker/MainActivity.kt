@@ -457,19 +457,22 @@ fun FusedStatusScreen(
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
             ) {
                 if (alerts.isNotEmpty() && checkResult !is CheckResult.Loading) {
                     AlertsBanner(alerts = alerts)
-                    Spacer(modifier = Modifier.height(12.dp))
                 }
 
-                AnimatedContent(
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AnimatedContent(
                     targetState = checkResult,
                     transitionSpec = {
                         (fadeIn(animationSpec = tween(400)) +
@@ -530,44 +533,45 @@ fun FusedStatusScreen(
                     }
                 }
             }
+        }
 
-            FloatingActionButton(
-                onClick = {
-                    HapticUtils.vibrateClick(context)
-                    checkStatus()
-                    fetchAlerts()
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp),
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-            ) {
-                 Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.check_now))
-            }
-            
-            if (showHistorySheet && currentDeviceData != null) {
-                HistoryBottomSheet(
-                    deviceData = currentDeviceData!!,
-                    currentRegion = currentRegion,
-                    sheetState = sheetState,
-                    onDismiss = { showHistorySheet = false }
-                )
-            }
+        FloatingActionButton(
+            onClick = {
+                HapticUtils.vibrateClick(context)
+                checkStatus()
+                fetchAlerts()
+            },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp),
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        ) {
+             Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.check_now))
+        }
+        
+        if (showHistorySheet && currentDeviceData != null) {
+            HistoryBottomSheet(
+                deviceData = currentDeviceData!!,
+                currentRegion = currentRegion,
+                sheetState = sheetState,
+                onDismiss = { showHistorySheet = false }
+            )
+        }
 
-            if (updateAvailable != null) {
-                UpdateDialog(
-                    release = updateAvailable!!,
-                    onDismiss = { updateAvailable = null },
-                    onDontAskAgain = {
-                        val clean = updateAvailable?.tagName?.replace("v", "")?.trim() ?: ""
-                        scope.launch {
-                            settingsRepo.setDismissedUpdateVersion(clean)
-                        }
-                        updateAvailable = null
+        if (updateAvailable != null) {
+            UpdateDialog(
+                release = updateAvailable!!,
+                onDismiss = { updateAvailable = null },
+                onDontAskAgain = {
+                    val clean = updateAvailable?.tagName?.replace("v", "")?.trim() ?: ""
+                    scope.launch {
+                        settingsRepo.setDismissedUpdateVersion(clean)
                     }
-                )
-            }
+                    updateAvailable = null
+                }
+            )
+        }
         }
     }
 } 
